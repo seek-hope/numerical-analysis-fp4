@@ -1,5 +1,13 @@
- https://www.kimi.com/share/19dd881e-c792-82cc-8000-0000de91a4a7
+# References
 
-https://chat.deepseek.com/share/6slvp5k6f93cqv8sby
+## Research Papers
 
-./优化数制与运算机制提升模型性能 - Claude.html
+- Frantar et al. (2023) "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers"
+- Dettmers et al. (2024) "QLoRA: Efficient Finetuning of Quantized LLMs"
+- Xiao et al. (2023) "SmoothQuant: Accurate and Efficient Post-Training Quantization for LLMs"
+- Chee et al. (2024) "QuIP: 2-Bit Quantization of Large Language Models With Guarantees"
+
+## External Links
+
+- HuggingFace Hub: https://huggingface.co
+- PyTorch: https://pytorch.org

@@ -79,8 +79,9 @@ src/
 
 ## Experiment Data
 
-- `data/gemma4_tiers/` — Pre-tokenized binary shards (tier1_c4.bin, tier2_fineweb.bin, tier3_wiki.bin, tier4_orca.bin)
-- `models/gemma4-e2b/` — Local copy of Gemma 4 E2B for tokenizer and reference model
+- `data/real_tiers/` — BPE-tokenized binary shards (~4.2B tokens total): tier1_c4 (1.0B), tier2_fineweb (1.4B), tier3_wiki (1.0B), tier4_orca (0.84B)
+- `data/tokenizer/` — BPE tokenizer (vocab_size=32000) + special token mapping
+- `models/gemma4-e2b/` — Local copy of Gemma 4 E2B for reference
 
 ## Dependencies
 
