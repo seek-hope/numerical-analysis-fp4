@@ -1,0 +1,42 @@
+# Sensitive files (DO NOT COMMIT)
+.sshpass
+*.pem
+*.key
+.env
+.env.*
+
+# Large binary data (use separate storage)
+data/
+models/
+checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Claude Code (local state only, not project configs)
+.claude/memory/
+.claude/plans/
+.claude/worktrees/
+
+# Conversation exports
+*Claude.html
+*Claude_files/
+
