@@ -104,7 +104,12 @@ Plans:
   4. Per-matrix error summary table generated with all required metadata columns (name, layer, type, kappa, ||dW||/||W||, ||dy||/||y||, tightness_ratio, norm_attenuation)
   5. REPORT.md updated with corrected kappa values, per-matrix measurements, null measurement validation, propagation waterfall data, and revised theoretical assessment incorporating all findings
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md -- 24-config PTQ comparison script (run_full_comparison.py): method dispatch for 6 quantizers, PPL + per-matrix ||dy||/||y||, GPTQ vs RTN comparison, Lloyd-Max vs uniform comparison, per-matrix summary table, JSON export
+- [ ] 05-02-PLAN.md -- Final report generation script (write_final_report.py): reads all Phase 3/4/5 JSON, generates REPORT.md with 10 sections, corrected methodology, revised theoretical assessment
 
 ## Progress
 
@@ -114,4 +119,4 @@ Plans:
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
 | 3. Theorem 1 Validation | 1/1 | Complete   | 2026-05-17 |
 | 4. Error Propagation Trace | 1/1 | Complete    | 2026-05-17 |
-| 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |
+| 5. Extended PTQ Comparison and Final Report | 0/2 | Ready (planned) | - |
