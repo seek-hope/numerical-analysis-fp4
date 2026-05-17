@@ -459,14 +459,13 @@ Source: Adapted from [VERIFIED: measure_qerror.py lines 127-173]
 | A4 | FP16 baseline checkpoint `checkpoints/scaled_fp16_baseline/model.pt` is accessible on remote | Environment Availability | Confirmed via remote execution. |
 | A5 | Phase 1 data split files need syncing before Phase 3 runs on remote | Common Pitfalls | Verified: local data has `*_val.bin` files, remote does not. Must run sync.sh. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should embed_tokens be excluded from the 72-matrix table since it is nn.Embedding, not nn.Linear?**
+1. **Should embed_tokens be excluded from the 72-matrix table since it is nn.Embedding, not nn.Linear?** RESOLVED: Exclude embed_tokens from per-matrix correlation analysis (no direct activation measurement via Linear pre-hook). Include embed_tokens and lm_head in the aggregated table for kappa and ||dW||/||W|| only, with ||dy||/||y|| marked as N/A. The script flags this at runtime. The 84 proj matrices (7 per layer × 12 layers = q/k/v/o/gate/up/down) form the core of the correlation test.
    - What we know: `get_quantizable_weights()` includes `embed_tokens` (dim >= 2 and name contains 'embed'). But ErrorPropagationTracker hooks only nn.Linear modules. embed_tokens is nn.Embedding, so no activation is captured for it.
-   - What's unclear: Should we compute ||dy||/||y|| for embed_tokens separately using G0 global point data, or exclude it from the table? D-08 says "global" type but doesn't address measurement feasibility.
    - Recommendation: Exclude embed_tokens from the correlation analysis (no direct activation measurement). Include it in the table only if G0 data can provide the input. Kappa and ||dW||/||W|| are still computable. Flag this in the script with a comment.
 
-2. **Are all 72 "proj" matrices indeed nn.Linear?**
+2. **Are all 72 "proj" matrices indeed nn.Linear?** RESOLVED: All proj matrices (q/k/v/o/gate/up/down) ARE nn.Linear and will be captured by the tracker. At runtime, print actual matrix count grouped by type (attention/ffn/global) for documentation. The plan should handle 72-85 matrices robustly.
    - What we know: `get_quantizable_weights()` returns weight matrices whose name contains 'proj', 'embed_tokens', or 'lm_head'. The 12 layers * 6 proj per layer (q, k, v, o, gate, up, down) = 72 proj + embed_tokens + lm_head = 74? Or just the 72 proj?
    - Need to verify: The count from `get_quantizable_weights()` should be verified at runtime and documented. If it includes embed_tokens and lm_head, the total is >72.
 
