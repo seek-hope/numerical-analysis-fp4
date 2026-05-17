@@ -8,7 +8,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 
 - [x] **Phase 1: Clean Data Split** - Split each data tier into train/val at .bin file level to prevent calibration-evaluation leakage (completed 2026-05-17)
 - [x] **Phase 2: Core Measurement Protocol** - Implement ErrorPropagationTracker with single-pass capture and per-matrix ||dy||/||y|| computation (completed 2026-05-17)
-- [ ] **Phase 3: Theorem 1 Validation** - Test kappa correlation with ||dy||/||y|| across 72 matrices with Bonferroni correction and multi-seed rigor
+- [x] **Phase 3: Theorem 1 Validation** - Test kappa correlation with ||dy||/||y|| across 72 matrices with Bonferroni correction and multi-seed rigor (completed 2026-05-17)
 - [ ] **Phase 4: Error Propagation Trace** - Trace quantization error through the full layer pipeline with RMSNorm attenuation and parallel/orthogonal decomposition
 - [ ] **Phase 5: Extended PTQ Comparison and Final Report** - Re-run 24-config PTQ comparison with clean data and both metrics; produce final report
 
@@ -72,7 +72,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 03-01-PLAN.md -- Multi-seed theorem 1 validation script with Pearson correlation, bootstrap CI, and verdict rubric
+- [x] 03-01-PLAN.md -- Multi-seed theorem 1 validation script with Pearson correlation, bootstrap CI, and verdict rubric
 
 ### Phase 4: Error Propagation Trace
 
@@ -109,6 +109,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
-| 3. Theorem 1 Validation | 0/1 | Not started | - |
+| 3. Theorem 1 Validation | 1/1 | Complete   | 2026-05-17 |
 | 4. Error Propagation Trace | 0/0 | Not started | - |
 | 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |
