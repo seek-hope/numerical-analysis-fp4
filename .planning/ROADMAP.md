@@ -39,7 +39,11 @@ Plans:
   3. For any quantized weight matrix with round-to-nearest, the pipeline computes ||(W_q - W)x||/||Wx|| from saved activations and reports it as a single scalar per matrix
   4. Per-matrix kappa(W) computed via exact SVD for all 72 matrices (correct sigma_min, not power iteration)
   5. Null measurement (quantize a weight already at FP16) produces ||dy||/||y|| < 1e-5, confirming measurement pipeline integrity
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md -- ErrorPropagationTracker class: hook registration, single-pass activation capture, offline ||dy||/||y|| computation, null measurement
+- [ ] 02-02-PLAN.md -- Measurement experiment script: model loading, kappa computation, end-to-end pipeline validation, results table and JSON export
 
 ### Phase 3: Theorem 1 Validation
 **Goal**: Determine whether Theorem 1's predicted upper bound ||dy||/||y|| <= kappa * ||dW||/||W|| holds empirically at per-matrix granularity
@@ -80,7 +84,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
-| 2. Core Measurement Protocol | 0/0 | Not started | - |
+| 2. Core Measurement Protocol | 0/2 | Not started | - |
 | 3. Theorem 1 Validation | 0/0 | Not started | - |
 | 4. Error Propagation Trace | 0/0 | Not started | - |
 | 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |
