@@ -15,19 +15,27 @@ FP8/FP4 low-precision quantization study on a ~164M parameter Gemma-style Transf
 
 ## Results
 
-**Post-Training Quantization (PTQ)** — FP16 baseline eval PPL 655:
+**Post-Training Quantization (PTQ)** — consolidated results are in
+[`docs/REPORT.md`](docs/REPORT.md). The latest report evaluates 6 PTQ methods
+across 2 checkpoints and 2 formats, ranking by per-matrix output-space
+relative error ||dy||/||y|| — the correct metric for testing numerical
+analysis predictions at the weight-output level.
 
-| Method | FP8 Δ | FP4 Δ |
-|--------|-------|-------|
-| Simple (per-tensor) | +1.4% | +1.2% |
-| Simple (per-channel) | −0.2% | +1.6% |
-| GPTQ (weight compensation) | +0.9% | +1.8% |
-| **Mixed precision** (3 FP8 + 9 FP4 layers) | **−0.3%** | **+0.5%** |
+| Best result | Method | mean \|\|dy\|\|/\|\|y\|\| |
+|-------------|--------|---------------------------|
+| FP8 PTQ | Round-to-nearest (per-channel) | 0.0137 |
+| FP4 PTQ | Lloyd-Max adaptive grid | 0.0664 |
+
+**Theorem 1 Verdict:** NO — Pearson r(kappa, ||dy||/||y||) = -0.23 across 84 matrices.
+FP4 unit roundoff (u=0.25) dominates: ||dW||/||W|| ≈ 0.15 for ALL matrices
+regardless of κ(W). RMSNorm attenuates error ~83% per layer, explaining why
+per-matrix errors do not cascade destructively.
 
 Key findings:
-- Mixed precision achieves near-zero degradation at both FP8 and FP4
-- Per-channel scaling alone reduces quantization error by ~40% vs per-tensor
-- FP4 PTQ is viable at this scale (<1% degradation with optimal method)
+- Simple round-to-nearest outperforms GPTQ on ||dy||/||y|| (GPTQ increases error by 44-49%)
+- Lloyd-Max adaptive grids reduce FP4 error by 18% vs uniform E2M1
+- Condition-number regularization does NOT improve quantization robustness
+- RMSNorm error blocking (~83% per layer) is the primary architectural defense
 
 ## Project Structure
 

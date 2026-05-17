@@ -6,6 +6,7 @@ Lower κ(W) → quantization errors are amplified less → "quantization-friendl
 Uses randomized power iteration (3-5 iterations) for efficiency.
 """
 
+import math
 import torch
 import torch.nn.functional as F
 
@@ -24,31 +25,30 @@ def power_iteration(W: torch.Tensor, n_iter: int = 5) -> float:
     return sigma_max
 
 
-def inverse_power_iteration(W: torch.Tensor, sigma_max: float,
-                             n_iter: int = 5) -> float:
-    """
-    Estimate σ_min via inverse power iteration, using σ_max as shift.
+def estimate_singular_values(W: torch.Tensor) -> tuple[float, float]:
+    """Compute σ_max and σ_min via exact SVD.
 
-    Solve (W^T W - σ_max^2 I) u = v via conjugate gradient implicitly.
-    Simplified: use Rayleigh quotient on a random vector.
+    Uses torch.linalg.svdvals which is O(min(m,n)·m·n). For the 164M model's
+    weight matrices (≤832×832), this costs < 1ms per matrix — negligible
+    compared to the concurrent per-matrix ||dy||/||y|| evaluation that follows.
+
+    Returns:
+        (sigma_max, sigma_min) as Python floats.
     """
-    if sigma_max < 1e-8:
-        return 0.0
-    v = torch.randn(W.size(1), device=W.device, dtype=W.dtype)
-    # Approximate: the minimum singular value of a random projection
-    # For NN matrices, this rough estimate is usually sufficient
-    v = F.normalize(v, dim=0)
-    Wv = W @ v
-    sigma_min = Wv.norm().item()
-    return max(sigma_min, 1e-8)
+    s = torch.linalg.svdvals(W.float())
+    return s.max().item(), s.min().clamp(min=1e-12).item()
 
 
 def estimate_condition_number(W: torch.Tensor, n_iter: int = 3) -> float:
-    """Estimate κ(W) = σ_max / σ_min for a weight matrix W."""
-    sigma_max = power_iteration(W, n_iter)
-    sigma_min = inverse_power_iteration(W, sigma_max, n_iter)
+    """Estimate κ(W) = σ_max / σ_min for a weight matrix W.
+
+    Uses exact SVD since weight matrices in the 164M model are ≤832×832,
+    making this cheap. The n_iter parameter is kept for API compatibility
+    but is unused.
+    """
+    sigma_max, sigma_min = estimate_singular_values(W)
     if sigma_min < 1e-12:
-        return 1e12  # Effectively singular
+        return 1e12
     return sigma_max / sigma_min
 
 
@@ -65,14 +65,47 @@ def compute_all_condition_numbers(model) -> dict[str, float]:
     return results
 
 
-def condition_number_regularization(model, lambda_cond: float = 1e-4) -> torch.Tensor:
+def _condition_regularization_surrogate(W: torch.Tensor, n_iter: int = 3) -> torch.Tensor:
+    """Differentiable condition-number surrogate.
+
+    Exact σ_min-based κ is too expensive to compute for every large Linear
+    layer at every training step. This surrogate penalizes concentration of
+    singular values by comparing σ_max to RMS singular value:
+
+        σ_max / sqrt(mean_i σ_i^2)
+
+    It is 1.0 when singular values are perfectly balanced and grows as one
+    direction dominates. The computation stays differentiable because it does
+    not call .item() on the weight-dependent terms.
+    """
+    Wf = W.float()
+    v = torch.randn(Wf.size(1), device=Wf.device, dtype=Wf.dtype)
+    for _ in range(n_iter):
+        v = F.normalize(Wf.T @ (Wf @ v), dim=0, eps=1e-12)
+
+    sigma_max = (Wf @ v).norm().clamp(min=1e-12)
+    rank = max(1, min(Wf.shape))
+    rms_sigma = (Wf.norm() / math.sqrt(rank)).clamp(min=1e-12)
+    return sigma_max / rms_sigma
+
+
+def _exact_condition_number_tensor(W: torch.Tensor) -> torch.Tensor:
+    """Differentiable exact κ via SVD, intended for diagnostics/small models."""
+    s = torch.linalg.svdvals(W.float())
+    return s.max() / s.min().clamp(min=1e-12)
+
+
+def condition_number_regularization(model, lambda_cond: float = 1e-4,
+                                    exact_svd: bool = False) -> torch.Tensor:
     """
     Compute the log-condition-number regularization term.
 
-    Loss = λ × Σ log(κ(W_i))
+    Loss = λ × Σ log(κ_surrogate(W_i))
 
     Using log prevents domination by a single very ill-conditioned matrix.
-    Only applied to 2D weight matrices (Linear layers).
+    By default this uses a differentiable spectral-concentration surrogate
+    instead of exact σ_max/σ_min, because exact SVD per layer per step is too
+    expensive for the 164M model. Set exact_svd=True for small diagnostics.
 
     Args:
         model: nn.Module
@@ -84,13 +117,17 @@ def condition_number_regularization(model, lambda_cond: float = 1e-4) -> torch.T
     if lambda_cond <= 0:
         return torch.tensor(0.0, device=next(model.parameters()).device)
 
-    reg = 0.0
+    reg = torch.zeros((), device=next(model.parameters()).device)
     for name, param in model.named_parameters():
         if param.dim() < 2:
             continue
-        kappa = estimate_condition_number(param.data, n_iter=3)
-        if kappa > 1.0:  # log(1) = 0, skip well-conditioned
-            reg += math.log(kappa)
+        name_lower = name.lower()
+        if 'embed' in name_lower or 'lm_head' in name_lower:
+            continue
+
+        kappa = (_exact_condition_number_tensor(param)
+                 if exact_svd else _condition_regularization_surrogate(param))
+        reg = reg + torch.log(kappa.clamp(min=1.0))
 
     return lambda_cond * reg
 
@@ -128,6 +165,3 @@ def analyze_quantization_sensitivity(model, quantizer) -> dict:
         }
 
     return results
-
-
-import math

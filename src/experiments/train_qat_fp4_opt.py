@@ -89,6 +89,9 @@ def train_with_metrics(model, dataloader, optimizer, device,
 
         input_ids = batch['input_ids'].to(device)
         labels = batch['labels'].to(device)
+        attention_mask = batch.get('attention_mask')
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(device)
 
         # Check gradient norm from previous step
         if adaptive and step > 0 and metrics:
@@ -99,7 +102,7 @@ def train_with_metrics(model, dataloader, optimizer, device,
                 # Update all QAT linears to use FP8
                 wrap_model_qat(model, quantizer_fp8, stochastic=True)
 
-        out = model(input_ids, labels=labels)
+        out = model(input_ids, attention_mask=attention_mask, labels=labels)
         loss = out['loss']
 
         optimizer.zero_grad()

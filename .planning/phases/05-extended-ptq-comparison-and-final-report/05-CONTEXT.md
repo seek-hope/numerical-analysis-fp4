@@ -5,24 +5,24 @@
 
 ## Phase Boundary
 
-Complete comparison of all PTQ methods under clean conditions with both PPL and per-matrix output error, culminating in the final project report. Re-run the 24-config PTQ comparison using the clean data split (Phase 1) and the ErrorPropagationTracker (Phase 2) to report both per-matrix ||dy||/||y|| and PPL for every configuration. Compare GPTQ column compensation against round-to-nearest on output-space error. Compare Lloyd-Max adaptive grids against uniform E2M1 on ||dy||/||y||. Synthesize all Phase 1-4 results into a comprehensive per-matrix error summary table and update the project report with corrected methodology and final theoretical assessment.
+Complete comparison of all PTQ methods under clean conditions using per-matrix output error as the sole evaluation metric, culminating in the final project report. Re-run the 24-config PTQ comparison using the clean data split (Phase 1) and the ErrorPropagationTracker (Phase 2) to report per-matrix ||dy||/||y|| for every configuration. PPL is not used as an evaluation metric — it is confounded by downstream RMSNorm/attention/FFN/lm_head transformations (see REPORT.md Methodology §6). Compare GPTQ column compensation against round-to-nearest on output-space error. Compare Lloyd-Max adaptive grids against uniform E2M1 on ||dy||/||y||. Synthesize all Phase 1-4 results into a comprehensive per-matrix error summary table and update the project report with corrected methodology and final theoretical assessment.
 
 ## Implementation Decisions
 
 ### 24-Config Comparison Scope (COMP-01)
 
-- **D-01:** The 24 configurations are defined as: 2 checkpoints (FP16 baseline, cond_regularized) × 2 formats (FP8 E4M3, FP4 E2M1) × 6 methods (round-to-nearest per-channel, GPTQ per-channel, Lloyd-Max adaptive, Hadamard rotation + round-to-nearest, outlier rotation + round-to-nearest, MXFP4 block-scaling). All 24 configs use the clean validation split for PPL evaluation and training split for calibration (GPTQ Hessian, adaptive grid fitting).
+- **D-01:** The 24 configurations are defined as: 2 checkpoints (FP16 baseline, cond_regularized) × 2 formats (FP8 E4M3, FP4 E2M1) × 6 methods (round-to-nearest per-channel, GPTQ per-channel, Lloyd-Max adaptive, Hadamard rotation + round-to-nearest, outlier rotation + round-to-nearest, MXFP4 block-scaling). All use the clean validation split for evaluation and training split for calibration (GPTQ Hessian, adaptive grid fitting).
 - **D-02:** Re-use existing quantizer infrastructure: `FPQuantizer` for round-to-nearest, `GPTQQuantizer` for GPTQ, `AdaptiveGridQuantizer` for Lloyd-Max, `HadamardRotation` + `FPQuantizer` for Hadamard, `DuQuantStyleQuantizer` for outlier rotation, `MXFP4Quantizer` for MXFP4.
-- **D-03:** Both metrics collected for every config: PPL via `evaluate_perplexity()` on validation split, and per-matrix ||dy||/||y|| via `ErrorPropagationTracker.compute_output_error()` using a single validation batch. PPL and ||dy||/||y|| are computed in the same quantized model forward pass (tracker attached during PPL evaluation).
+- **D-03:** Per-matrix ||dy||/||y|| measured via manual computation from captured FP16 activations (not PPL — see Methodology §6 in REPORT.md for the PPL confound rationale).
 
 ### GPTQ vs Round-to-Nearest Comparison (COMP-02)
 
-- **D-04:** For both checkpoints and both formats (4 configs: 2 checkpoints × 2 formats × 1 method-pair), compare GPTQ against round-to-nearest. For each config, report: (a) PPL difference, (b) mean ||dy||/||y|| difference across all 72 matrices, (c) per-matrix ||dy||/||y|| delta (GPTQ_error - RTN_error). Negative values indicate GPTQ reduces output-space error; positive values indicate it increases it.
+- **D-04:** For both checkpoints and both formats (4 configs: 2 checkpoints × 2 formats × 1 method-pair), compare GPTQ against round-to-nearest. For each config, report: (a) mean ||dy||/||y|| difference across all 72 matrices, (b) per-matrix ||dy||/||y|| delta (GPTQ_error - RTN_error). Negative values indicate GPTQ reduces output-space error; positive values indicate it increases it.
 - **D-05:** Use the same calibration data for GPTQ Hessian computation as the original phase2_comparison.py — training split, 256 samples, seq_len=512.
 
 ### Lloyd-Max vs Uniform E2M1 Comparison (COMP-03)
 
-- **D-06:** For both checkpoints (2 configs: 2 checkpoints × FP4 E2M1 × 1 method-pair), compare Lloyd-Max adaptive grids against uniform E2M1. For each checkpoint, report: (a) PPL difference, (b) mean ||dy||/||y|| difference, (c) per-matrix ||dy||/||y|| delta (adaptive_error - uniform_error).
+- **D-06:** For both checkpoints (2 configs: 2 checkpoints × FP4 E2M1 × 1 method-pair), compare Lloyd-Max adaptive grids against uniform E2M1. For each checkpoint, report: (a) mean ||dy||/||y|| difference, (b) per-matrix ||dy||/||y|| delta (adaptive_error - uniform_error).
 - **D-07:** Lloyd-Max grids fitted on training split (256 samples). Adaptive grid quantization uses per-channel scaling; grid values are per-layer optimized (not per-matrix).
 
 ### Per-Matrix Error Summary Table (REPORT-01)
@@ -35,7 +35,7 @@ Complete comparison of all PTQ methods under clean conditions with both PPL and 
 - **D-10:** Single comprehensive comparison script `src/experiments/run_full_comparison.py` that:
   1. Loads FP16 baseline and cond_regularized checkpoints
   2. Runs the 24-config PTQ comparison with clean data split
-  3. For each config: computes PPL (100 validation steps) and per-matrix ||dy||/||y|| (single batch via ErrorPropagationTracker)
+  3. For each config: computes per-matrix ||dy||/||y|| (single batch via manual computation from captured FP16 activations)
   4. Performs GPTQ vs RTN comparison (COMP-02)
   5. Performs Lloyd-Max vs uniform comparison (COMP-03)
   6. Loads Phase 3 and Phase 4 JSON results
@@ -59,8 +59,8 @@ Complete comparison of all PTQ methods under clean conditions with both PPL and 
 
 - Whether to run the comparison script as a single pass (all 24 configs in one script execution) or allow re-entrant partial execution (e.g., `--configs 0-11` and `--configs 12-23` for GPU time management)
 - Exact print table formatting (column widths, decimal places)
-- Whether to include per-layer-type subgroup analysis in the comparison report (attention-only PPL, FFN-only ||dy||/||y||)
-- Whether to compute cross-checkpoint comparisons (FP16 baseline vs cond_regularized) beyond the basic PPL delta
+- Whether to include per-layer-type subgroup analysis in the comparison report (attention-only ||dy||/||y||, FFN-only ||dy||/||y||)
+- Whether to compute cross-checkpoint comparisons (FP16 baseline vs cond_regularized) on ||dy||/||y||
 - Logging verbosity (progress per config, timing info)
 - Whether to include the Hadamard and outlier rotation methods if they show instability at this model scale (they may be omitted if results are pathological)
 

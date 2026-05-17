@@ -4,7 +4,6 @@ Supports FP8/FP4 quantization via forward hooks during QAT and PTQ.
 Architecture mirrors Gemma 4 features at a research-friendly scale.
 """
 
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -74,6 +73,7 @@ class Attention(nn.Module):
         super().__init__()
         self.layer_idx = layer_idx
         self.layer_type = config.layer_types[layer_idx]
+        self.sliding_window = config.sliding_window
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
         self.head_dim = config.head_dim if self.layer_type == 'sliding' else config.global_head_dim
@@ -91,6 +91,26 @@ class Attention(nn.Module):
         self.rotary = RotaryEmbedding(self.head_dim, config.max_position_embeddings, config.rope_theta)
         self.q_norm = RMSNorm(self.head_dim, config.rms_norm_eps)
         self.k_norm = RMSNorm(self.head_dim, config.rms_norm_eps)
+
+    def _build_attention_mask(self, attention_mask, seq_len: int, device):
+        """Build an SDPA boolean mask where True means attention is allowed."""
+        if self.layer_type == 'full' and attention_mask is None:
+            return None
+
+        q_pos = torch.arange(seq_len, device=device).unsqueeze(1)
+        k_pos = torch.arange(seq_len, device=device).unsqueeze(0)
+        allowed = k_pos <= q_pos
+
+        if self.layer_type == 'sliding':
+            allowed = allowed & ((q_pos - k_pos) < self.sliding_window)
+
+        allowed = allowed.unsqueeze(0).unsqueeze(0)
+
+        if attention_mask is not None:
+            key_mask = attention_mask.to(device=device, dtype=torch.bool)
+            allowed = allowed & key_mask[:, None, None, :]
+
+        return allowed
 
     def forward(self, hidden_states, pl_emb, position_ids, attention_mask=None):
         batch, seq_len, _ = hidden_states.shape
@@ -118,8 +138,10 @@ class Attention(nn.Module):
         k = repeat_kv(k, self.num_kv_groups)
         v = repeat_kv(v, self.num_kv_groups)
 
+        sdpa_mask = self._build_attention_mask(attention_mask, seq_len, q.device)
         attn_output = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=attention_mask, dropout_p=0.0, is_causal=True)
+            q, k, v, attn_mask=sdpa_mask, dropout_p=0.0,
+            is_causal=(sdpa_mask is None))
         attn_output = attn_output.transpose(1, 2).reshape(batch, seq_len, -1)
         return self.o_proj(attn_output)
 

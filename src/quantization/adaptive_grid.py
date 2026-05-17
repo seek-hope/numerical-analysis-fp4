@@ -36,42 +36,46 @@ def lloyd_max_grid(
                       1 = full κ weighting, higher = more conservative)
 
     Returns:
-        grid: sorted tensor of n_levels quantization levels (both signs,
-              symmetric around zero with half the levels on each side)
+        grid: sorted tensor of unique quantization values. For even FP formats
+              with signed zero encodings, n_levels=16 yields 15 unique values:
+              7 negative values, 0, and 7 positive values.
     """
     w = weights.detach().flatten().float()
-    n_half = n_levels // 2  # 8 levels for positive side
+    n_pos = n_levels // 2 - 1 if n_levels % 2 == 0 else n_levels // 2
+    n_pos = max(1, n_pos)
 
     # Initial grid: NF4-inspired normal quantiles
     # Use k-means++ style initialization on the absolute weight distribution
     w_abs = w.abs()
+    if w_abs.max() < 1e-12:
+        return torch.tensor([0.0], device=w.device)
     w_sorted, _ = w_abs.sort()
 
     # Initialize with equal-probability partition (NF4 principle)
-    init_idx = torch.linspace(0, len(w_sorted) - 1, n_half + 1).long()
-    grid_pos = torch.zeros(n_half, device=w.device)
-    for i in range(n_half):
-        grid_pos[i] = w_sorted[
-            init_idx[i]:init_idx[i + 1]
-        ].mean()
+    init_idx = torch.linspace(0, len(w_sorted), n_pos + 1).long()
+    grid_pos = torch.zeros(n_pos, device=w.device)
+    for i in range(n_pos):
+        bucket = w_sorted[init_idx[i]:init_idx[i + 1]]
+        grid_pos[i] = bucket.mean() if bucket.numel() > 0 else w_sorted[-1]
 
     # κ-weighted sample weights: high κ → penalize large errors more
     if kappa_weight > 0 and kappa > 1.0:
         # Weights near zero contribute less, tails contribute more
-        sample_weight = 1.0 + kappa_weight * (kappa - 1.0) * (w_abs / w_abs.max())
+        sample_weight = 1.0 + kappa_weight * (kappa - 1.0) * (
+            w_abs / w_abs.max().clamp(min=1e-12))
     else:
         sample_weight = torch.ones_like(w_abs)
 
     # Lloyd-Max iteration
     for it in range(n_iter):
         # Step 1: Assign each value to nearest grid point (Voronoi partition)
-        # Compute pairwise distances (n_samples, n_half)
+        # Compute pairwise distances (n_samples, n_pos)
         dists = (w_abs.unsqueeze(1) - grid_pos.unsqueeze(0)).abs()
         assignments = dists.argmin(dim=1)
 
         # Step 2: Update grid points to centroids of assigned values
         new_grid = torch.zeros_like(grid_pos)
-        for j in range(n_half):
+        for j in range(n_pos):
             mask = (assignments == j)
             if mask.sum() > 0:
                 sw = sample_weight[mask]
@@ -85,11 +89,10 @@ def lloyd_max_grid(
         if shift < 1e-6:
             break
 
-    # Build full symmetric grid: {-g, ..., -0, 0, +0, ..., +g}
-    # Exclude exact zero if not already present (add small positive to
-    # maintain FP4-compatible format with sign bit)
+    # Build full symmetric grid. FP4 has two signed-zero encodings but only
+    # one unique zero value, so n_levels=16 maps to 15 unique tensor values.
     grid_pos_sorted, _ = grid_pos.sort()
-    if grid_pos_sorted[0] < 1e-8:
+    if grid_pos_sorted.numel() > 0 and grid_pos_sorted[0] < 1e-8:
         grid_pos_sorted = grid_pos_sorted[1:]  # Remove zero, handle separately
 
     full_grid = torch.cat([

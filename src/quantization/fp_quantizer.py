@@ -192,19 +192,28 @@ class QuantizedLinear(torch.autograd.Function):
     @staticmethod
     def forward(ctx, weight, bias, x, quantizer, stochastic):
         w_q = quantizer.quantize(weight, stochastic=stochastic)
-        ctx.save_for_backward(weight)
-        ctx.quantizer = quantizer
-        ctx.stochastic = stochastic
+        ctx.save_for_backward(weight, x)
+        ctx.has_bias = bias is not None
         return F.linear(x, w_q, bias)
 
     @staticmethod
     def backward(ctx, grad_output):
-        weight, = ctx.saved_tensors
-        grad_bias = grad_output.sum(0) if ctx.needs_input_grad[1] else None
-        # STE: gradient through quantization is identity
-        grad_weight = grad_output.transpose(-1, -2) @ F.linear(grad_output, weight.zero_())
-        # Simplified: just pass gradient
-        return None, grad_bias, grad_output @ weight, None, None
+        weight, x = ctx.saved_tensors
+
+        grad_weight = grad_bias = grad_x = None
+
+        if ctx.needs_input_grad[0]:
+            grad_out_2d = grad_output.reshape(-1, grad_output.shape[-1])
+            x_2d = x.reshape(-1, x.shape[-1])
+            grad_weight = grad_out_2d.t() @ x_2d
+
+        if ctx.needs_input_grad[1] and ctx.has_bias:
+            grad_bias = grad_output.sum(dim=tuple(range(grad_output.dim() - 1)))
+
+        if ctx.needs_input_grad[2]:
+            grad_x = grad_output @ weight
+
+        return grad_weight, grad_bias, grad_x, None, None
 
 
 def make_qat_forward_hook(quantizer: FPQuantizer, stochastic: bool = False):

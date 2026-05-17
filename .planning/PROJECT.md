@@ -32,7 +32,7 @@ A numerical analysis course project that systematically investigates how classic
 - [ ] **MEAS-02**: Full error propagation trace — hook at 6+ points per layer (pre-linear, post-linear, post-RMSNorm, post-attention, post-FFN, post-layer) to quantify where error is amplified or attenuated
 - [ ] **MEAS-03**: RMSNorm attenuation measurement — hook before/after every RMSNorm in the model, measure ||δ_post||/||δ_pre|| compression ratio per layer
 - [ ] **MEAS-04**: Fix data split — implement train/val split in `prepare_data_chunked.py` and `get_dataloader()` to prevent calibration-evaluation leakage
-- [ ] **MEAS-05**: Re-run PTQ comparison with clean data split and corrected κ computation, report per-layer output MSE alongside PPL
+- [ ] **MEAS-05**: Re-run PTQ comparison with clean data split and corrected κ computation, report per-layer output MSE
 
 ### Out of Scope
 

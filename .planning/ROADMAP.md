@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build a precision measurement protocol that tracks per-matrix weight quantization error (||dy||/||y||) through a 164M Transformer's layer pipeline. Start by fixing the critical data-split blocker, then implement the core ErrorPropagationTracker for single-pass activation capture, validate Theorem 1 at per-matrix granularity across all 72 weight matrices, trace error propagation through the full layer pipeline with RMSNorm decomposition, and finally re-run all PTQ comparisons under clean conditions with the new metric alongside PPL. The journey moves from infrastructure (I can measure correctly) through theory validation (does Theorem 1 hold at the right granularity) to mechanism tracing (where does error go) and finally to synthesis (comprehensive comparison with corrected methodology).
+Build a precision measurement protocol that tracks per-matrix weight quantization error (||dy||/||y||) through a 164M Transformer's layer pipeline. Start by fixing the critical data-split blocker, then implement the core ErrorPropagationTracker for single-pass activation capture, validate Theorem 1 at per-matrix granularity across all 72 weight matrices, trace error propagation through the full layer pipeline with RMSNorm decomposition, and finally re-run all PTQ comparisons under clean conditions with the new metric. The journey moves from infrastructure (I can measure correctly) through theory validation (does Theorem 1 hold at the right granularity) to mechanism tracing (where does error go) and finally to synthesis (comprehensive comparison with corrected methodology).
 
 ## Phases
 
@@ -93,12 +93,12 @@ Plans:
 
 ### Phase 5: Extended PTQ Comparison and Final Report
 
-**Goal**: Complete comparison of all PTQ methods under clean conditions with both PPL and per-matrix output error, culminating in the final project report
+**Goal**: Complete comparison of all PTQ methods under clean conditions using per-matrix output error, culminating in the final project report
 **Depends on**: Phase 1, Phase 2, Phase 3, Phase 4
 **Requirements**: COMP-01, COMP-02, COMP-03, REPORT-01, REPORT-02, REPORT-03
 **Success Criteria** (what must be TRUE):
 
-  1. 24-config PTQ comparison re-run with clean data split, reporting both PPL and per-matrix ||dy||/||y|| for every configuration
+  1. 24-config PTQ comparison re-run with clean data split, reporting per-matrix ||dy||/||y|| for every configuration
   2. GPTQ vs round-to-nearest comparison shows whether column compensation reduces ||dy||/||y|| compared to what weight-space metrics alone predict
   3. Lloyd-Max adaptive grid vs uniform E2M1 grid comparison shows whether distribution-adaptive grids reduce ||dy||/||y||
   4. Per-matrix error summary table generated with all required metadata columns (name, layer, type, kappa, ||dW||/||W||, ||dy||/||y||, tightness_ratio, norm_attenuation)
@@ -108,7 +108,7 @@ Plans:
 
 **Wave 1**
 
-- [x] 05-01-PLAN.md -- 24-config PTQ comparison script (run_full_comparison.py): method dispatch for 6 quantizers, PPL + per-matrix ||dy||/||y||, GPTQ vs RTN comparison, Lloyd-Max vs uniform comparison, per-matrix summary table, JSON export
+- [x] 05-01-PLAN.md -- 24-config PTQ comparison script (run_full_comparison.py): method dispatch for 6 quantizers, per-matrix ||dy||/||y||, GPTQ vs RTN comparison, Lloyd-Max vs uniform comparison, per-matrix summary table, JSON export
 - [x] 05-02-PLAN.md -- Final report generation script (write_final_report.py): reads all Phase 3/4/5 JSON, generates REPORT.md with 10 sections, corrected methodology, revised theoretical assessment
 
 ## Progress

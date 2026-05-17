@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 SSHPASS_FILE="$PROJECT_ROOT/.sshpass"
 LOCAL_DIR="/home/rimuru/Projects/Code/homework/Numerical_Analysis/proj/"
 REMOTE_USER="bi_group2"
-REMOTE_HOST="bioinfo_class"
+REMOTE_HOST="lulab_4090"
 REMOTE_DIR="/home/bi_group2/Projects/Numerical_Analysis/"
 
 echo "Syncing $LOCAL_DIR → $REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR"

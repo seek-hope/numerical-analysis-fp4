@@ -17,5 +17,5 @@ fi
 SCRIPT="$1"
 shift
 
-sshpass -f "$SSHPASS_FILE" ssh bi_group2@bioinfo_class \
+sshpass -f "$SSHPASS_FILE" ssh bi_group2@lulab_4090 \
     "cd /home/bi_group2/Projects/Numerical_Analysis && export PYTHONPATH=/home/bi_group2/Projects/Numerical_Analysis:\$PYTHONPATH && conda activate sle && python $SCRIPT $*"

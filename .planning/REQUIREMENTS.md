@@ -33,7 +33,7 @@
 
 ### Extended PTQ Comparison
 
-- [x] **COMP-01**: Re-run 24-config PTQ comparison (2 checkpoints × 2 formats × 6 methods) with clean data split, reporting both PPL and per-matrix ||δy||/||y||
+- [x] **COMP-01**: Re-run 24-config PTQ comparison (2 checkpoints × 2 formats × 6 methods) with clean data split, reporting per-matrix ||δy||/||y||
 - [x] **COMP-02**: For GPTQ method specifically, compare ||δy||/||y|| against round-to-nearest — quantify whether column compensation reduces output error beyond what weight-space metrics predict
 - [x] **COMP-03**: For Lloyd-Max adaptive grid, compare per-matrix ||δy||/||y|| against uniform E2M1 grid — test whether distribution-adaptive grids reduce output-space error
 

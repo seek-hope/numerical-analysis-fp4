@@ -224,7 +224,10 @@ class GPTQQuantizer:
             if step >= max_steps:
                 break
             input_ids = batch['input_ids'].to(device)
-            model(input_ids)
+            attention_mask = batch.get('attention_mask')
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+            model(input_ids, attention_mask=attention_mask)
 
         # Remove hooks
         for h in hooks:
