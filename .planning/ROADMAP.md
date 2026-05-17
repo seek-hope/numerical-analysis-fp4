@@ -86,7 +86,10 @@ Plans:
   3. RMSNorm error decomposition shows parallel component (along signal direction) and orthogonal component separately for each layer, testing whether RMSNorm attenuates or redirects error
   4. Error waterfall data exported in structured format for visualization (||delta||/||y|| vs measurement point)
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 04-01-PLAN.md -- Error propagation trace script: per-source P-point waterfall for layers 0/5/11 (TRACE-01), RMSNorm attenuation ratios across all 12 layers (TRACE-02), parallel/orthogonal error decomposition (TRACE-03), and structured JSON export
 
 ### Phase 5: Extended PTQ Comparison and Final Report
 
@@ -110,5 +113,5 @@ Plans:
 | 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
 | 3. Theorem 1 Validation | 1/1 | Complete   | 2026-05-17 |
-| 4. Error Propagation Trace | 0/0 | Not started | - |
+| 4. Error Propagation Trace | 0/1 | Planned | - |
 | 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |
