@@ -9,7 +9,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 - [x] **Phase 1: Clean Data Split** - Split each data tier into train/val at .bin file level to prevent calibration-evaluation leakage (completed 2026-05-17)
 - [x] **Phase 2: Core Measurement Protocol** - Implement ErrorPropagationTracker with single-pass capture and per-matrix ||dy||/||y|| computation (completed 2026-05-17)
 - [x] **Phase 3: Theorem 1 Validation** - Test kappa correlation with ||dy||/||y|| across 72 matrices with Bonferroni correction and multi-seed rigor (completed 2026-05-17)
-- [ ] **Phase 4: Error Propagation Trace** - Trace quantization error through the full layer pipeline with RMSNorm attenuation and parallel/orthogonal decomposition
+- [x] **Phase 4: Error Propagation Trace** - Trace quantization error through the full layer pipeline with RMSNorm attenuation and parallel/orthogonal decomposition (completed 2026-05-17)
 - [ ] **Phase 5: Extended PTQ Comparison and Final Report** - Re-run 24-config PTQ comparison with clean data and both metrics; produce final report
 
 ## Phase Details
@@ -89,7 +89,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 04-01-PLAN.md -- Error propagation trace script: per-source P-point waterfall for layers 0/5/11 (TRACE-01), RMSNorm attenuation ratios across all 12 layers (TRACE-02), parallel/orthogonal error decomposition (TRACE-03), and structured JSON export
+- [x] 04-01-PLAN.md -- Error propagation trace script: per-source P-point waterfall for layers 0/5/11 (TRACE-01), RMSNorm attenuation ratios across all 12 layers (TRACE-02), parallel/orthogonal error decomposition (TRACE-03), and structured JSON export
 
 ### Phase 5: Extended PTQ Comparison and Final Report
 
@@ -113,5 +113,5 @@ Plans:
 | 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
 | 3. Theorem 1 Validation | 1/1 | Complete   | 2026-05-17 |
-| 4. Error Propagation Trace | 0/1 | Planned | - |
+| 4. Error Propagation Trace | 1/1 | Complete    | 2026-05-17 |
 | 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |

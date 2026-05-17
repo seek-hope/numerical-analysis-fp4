@@ -27,9 +27,9 @@
 
 ### Error Propagation Trace
 
-- [ ] **TRACE-01**: For each quantized weight matrix in layers 0, 5, and 11 (representative early/mid/late), measure ||δ||/||y|| at all 6 layer measurement points (P0→P1→P2→P4→P5→P6)
-- [ ] **TRACE-02**: Quantify RMSNorm attenuation: measure `||δ_post||/||δ_pre||` at input_norm and post_attn_norm for all 12 layers, report per-layer compression ratio
-- [ ] **TRACE-03**: Decompose RMSNorm error into parallel component (along signal direction) and orthogonal component, report both separately — tests whether RMSNorm attenuates or redirects error
+- [x] **TRACE-01**: For each quantized weight matrix in layers 0, 5, and 11 (representative early/mid/late), measure ||δ||/||y|| at all 6 layer measurement points (P0→P1→P2→P4→P5→P6)
+- [x] **TRACE-02**: Quantify RMSNorm attenuation: measure `||δ_post||/||δ_pre||` at input_norm and post_attn_norm for all 12 layers, report per-layer compression ratio
+- [x] **TRACE-03**: Decompose RMSNorm error into parallel component (along signal direction) and orthogonal component, report both separately — tests whether RMSNorm attenuates or redirects error
 
 ### Extended PTQ Comparison
 
@@ -83,9 +83,9 @@
 | VAL-01 | Phase 3 (Theorem 1 Validation) | Pending |
 | VAL-02 | Phase 3 (Theorem 1 Validation) | Pending |
 | VAL-04 | Phase 3 (Theorem 1 Validation) | Pending |
-| TRACE-01 | Phase 4 (Error Propagation Trace) | Pending |
-| TRACE-02 | Phase 4 (Error Propagation Trace) | Pending |
-| TRACE-03 | Phase 4 (Error Propagation Trace) | Pending |
+| TRACE-01 | Phase 4 (Error Propagation Trace) | Complete |
+| TRACE-02 | Phase 4 (Error Propagation Trace) | Complete |
+| TRACE-03 | Phase 4 (Error Propagation Trace) | Complete |
 | COMP-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
 | COMP-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
 | COMP-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
