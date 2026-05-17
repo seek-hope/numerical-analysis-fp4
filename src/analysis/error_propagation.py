@@ -269,6 +269,110 @@ class ErrorPropagationTracker:
         print(f"[Tracker] Removed {len(self._hook_handles)} hooks")
         return self
 
+    # ── Offline Error Computation ─────────────────────────────
+
+    def _resolve_module(self, model: nn.Module, module_path: str):
+        """Resolve a module from a dot-separated path.
+
+        Splits ``module_path`` by '.' and traverses model attributes.
+        Returns the resolved ``nn.Module`` or ``None`` if not found.
+        """
+        obj = model
+        parts = module_path.split('.')
+        for part in parts:
+            if hasattr(obj, part):
+                obj = getattr(obj, part)
+            else:
+                return None
+        return obj
+
+    @torch.no_grad()
+    def compute_output_error(self, model: nn.Module,
+                             quantizer) -> dict[str, float]:
+        """Compute per-matrix output-space relative error offline.
+
+        For each captured activation, computes:
+            ||(W_q - W)x|| / ||Wx||
+
+        where W_q = quantizer.quantize(W_fp) with round-to-nearest.
+
+        Args:
+            model: The model containing the weight matrices.
+            quantizer: Object with ``quantize(W)`` method.
+
+        Returns:
+            dict[str, float]: Module path -> relative error.
+        """
+        results: dict[str, float] = {}
+
+        for module_path, x_cpu in self._activations.items():
+            module = self._resolve_module(model, module_path)
+            if module is None or not hasattr(module, 'weight'):
+                continue
+
+            W_fp = module.weight.data
+            device = W_fp.device
+            x = x_cpu.to(device)
+
+            # y_fp = x @ W.T
+            y_fp = x @ W_fp.T
+
+            # y_q = x @ W_q.T
+            W_q = quantizer.quantize(W_fp)
+            y_q = x @ W_q.T
+
+            # Relative error: ||y_q - y_fp|| / ||y_fp||
+            denom = y_fp.norm().clamp(min=1e-12)
+            err = (y_q - y_fp).norm() / denom
+            results[module_path] = err.item()
+
+        return results
+
+    @torch.no_grad()
+    def validate_null_measurement(self, model: nn.Module) -> float:
+        """Validate the measurement pipeline with identity quantization.
+
+        Computes ||(W - W)x|| / ||Wx|| which should be negligible (W_q == W_fp).
+        Raises ``ValueError`` if any module's null error exceeds 1e-5.
+
+        Returns:
+            float: Maximum null error across all modules.
+        """
+        max_err = 0.0
+        violations: list[tuple[str, float]] = []
+
+        for module_path, x_cpu in self._activations.items():
+            module = self._resolve_module(model, module_path)
+            if module is None or not hasattr(module, 'weight'):
+                continue
+
+            W_fp = module.weight.data
+            x = x_cpu.to(W_fp.device)
+
+            # Identity quantization: W_q == W_fp
+            y_fp = x @ W_fp.T
+            y_q = x @ W_fp.T
+
+            denom = y_fp.norm().clamp(min=1e-12)
+            err = (y_q - y_fp).norm() / denom
+            err_val = err.item()
+            max_err = max(max_err, err_val)
+
+            if err_val > 1e-5:
+                violations.append((module_path, err_val))
+
+        if violations:
+            print(f"[WARN] Null measurement failed: {len(violations)} modules "
+                  f"exceed 1e-5. Max error: {max_err:.2e}")
+            for path, val in violations[:5]:
+                print(f"  {path}: {val:.2e}")
+            raise ValueError(
+                f"[WARN] Null measurement failed: {len(violations)} modules "
+                f"exceed 1e-5. Max error: {max_err:.2e}"
+            )
+
+        return max_err
+
     @property
     def activations(self) -> dict[str, torch.Tensor]:
         """Return a copy of the activation dict (not the original reference)."""
