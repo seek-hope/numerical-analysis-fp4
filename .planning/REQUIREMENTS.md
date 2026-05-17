@@ -72,26 +72,26 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 1 | Pending |
-| DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
-| MEAS-01 | Phase 2 | Pending |
-| MEAS-02 | Phase 2 | Pending |
-| MEAS-03 | Phase 2 | Pending |
-| MEAS-04 | Phase 2 | Pending |
-| VAL-01 | Phase 3 | Pending |
-| VAL-02 | Phase 3 | Pending |
-| VAL-03 | Phase 2 | Pending |
-| VAL-04 | Phase 3 | Pending |
-| TRACE-01 | Phase 4 | Pending |
-| TRACE-02 | Phase 4 | Pending |
-| TRACE-03 | Phase 4 | Pending |
-| COMP-01 | Phase 5 | Pending |
-| COMP-02 | Phase 5 | Pending |
-| COMP-03 | Phase 5 | Pending |
-| REPORT-01 | Phase 5 | Pending |
-| REPORT-02 | Phase 5 | Pending |
-| REPORT-03 | Phase 5 | Pending |
+| DATA-01 | Phase 1 (Clean Data Split) | Pending |
+| DATA-02 | Phase 1 (Clean Data Split) | Pending |
+| DATA-03 | Phase 1 (Clean Data Split) | Pending |
+| MEAS-01 | Phase 2 (Core Measurement Protocol) | Pending |
+| MEAS-02 | Phase 2 (Core Measurement Protocol) | Pending |
+| MEAS-03 | Phase 2 (Core Measurement Protocol) | Pending |
+| MEAS-04 | Phase 2 (Core Measurement Protocol) | Pending |
+| VAL-03 | Phase 2 (Core Measurement Protocol) | Pending |
+| VAL-01 | Phase 3 (Theorem 1 Validation) | Pending |
+| VAL-02 | Phase 3 (Theorem 1 Validation) | Pending |
+| VAL-04 | Phase 3 (Theorem 1 Validation) | Pending |
+| TRACE-01 | Phase 4 (Error Propagation Trace) | Pending |
+| TRACE-02 | Phase 4 (Error Propagation Trace) | Pending |
+| TRACE-03 | Phase 4 (Error Propagation Trace) | Pending |
+| COMP-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| COMP-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| COMP-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| REPORT-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| REPORT-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| REPORT-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
 
 **Coverage:**
 - v1 requirements: 20 total
@@ -100,4 +100,4 @@
 
 ---
 *Requirements defined: 2026-05-17*
-*Last updated: 2026-05-17 after initial definition*
+*Last updated: 2026-05-17 after roadmap creation*
