@@ -127,18 +127,20 @@ class MultiTierDataset(Dataset):
     """
 
     def __init__(self, data_dir: str, seq_len: int = 512,
-                 tier: str | None = None):
+                 tier: str | None = None, split: str = 'train'):
         import glob
         if tier:
-            paths = [os.path.join(data_dir, f'{tier}.bin')]
+            paths = [os.path.join(data_dir, f'{tier}_{split}.bin')]
         else:
-            paths = sorted(glob.glob(os.path.join(data_dir, '*.bin')))
+            pattern = f'*_{split}.bin'
+            paths = sorted(glob.glob(os.path.join(data_dir, pattern)))
 
         self.datasets = []
         self.offsets = [0]
         for p in paths:
             if os.path.exists(p):
                 ds = BinDataset(p, seq_len)
+                ds.path = p  # store path for file-access audit
                 self.datasets.append(ds)
                 self.offsets.append(self.offsets[-1] + len(ds))
 
@@ -171,10 +173,15 @@ def _detect_data_dir(data_dir: str) -> str | None:
 
 def get_real_dataloader(data_dir: str, batch_size: int = 8,
                          seq_len: int = 512, max_steps: int = 1500,
-                         tier: str | None = None) -> DataLoader:
+                         tier: str | None = None,
+                         split: str = 'train') -> DataLoader:
     """Create dataloader from pre-tokenized .bin shards."""
-    dataset = MultiTierDataset(data_dir, seq_len, tier)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True,
+    dataset = MultiTierDataset(data_dir, seq_len, tier, split=split)
+    # File-access audit (D-06): log matched file paths tagged with split
+    matched_paths = [getattr(ds, 'path', 'unknown') for ds in dataset.datasets]
+    print(f"[DATA] split={split} matched {len(matched_paths)} files: {matched_paths}")
+    shuffle = (split == 'train')
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
                       collate_fn=collate_batch, num_workers=0,
                       pin_memory=True)
 
@@ -195,7 +202,8 @@ def get_offline_dataloader(batch_size: int = 8, max_seq_len: int = 512,
 def get_dataloader(batch_size: int = 8, max_seq_len: int = 512,
                     max_steps: int = 1500, vocab_size: int = 32000,
                     data_dir: str | None = None,
-                    tier: str | None = None) -> DataLoader:
+                    tier: str | None = None,
+                    split: str = 'train') -> DataLoader:
     """Create dataloader — auto-selects real data if available.
 
     Priority:
@@ -210,7 +218,7 @@ def get_dataloader(batch_size: int = 8, max_seq_len: int = 512,
 
     if effective_dir:
         return get_real_dataloader(effective_dir, batch_size,
-                                    max_seq_len, max_steps, tier)
+                                    max_seq_len, max_steps, tier, split=split)
 
     # Offline fallback
     return get_offline_dataloader(batch_size, max_seq_len,
