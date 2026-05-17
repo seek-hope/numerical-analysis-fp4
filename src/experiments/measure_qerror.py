@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 
 import torch
@@ -121,6 +122,87 @@ def main():
     except ValueError as e:
         print(f"  Null measurement: FAILED -- {e}")
         sys.exit(1)
+
+    # ── Build and print results table ──────────────────────────
+    print("\n" + "=" * 110)
+    print("  Per-Matrix Quantization Error Report")
+    print("=" * 110)
+
+    header = (
+        f"  {'name':<50s}  {'layer':>5s}  {'type':>10s}  "
+        f"{'kappa':>12s}  {'||dW||/||W||':>14s}  {'||dy||/||y||':>14s}"
+    )
+    print(header)
+    print("  " + "-" * 108)
+
+    results_rows = []
+    for module_path, error_val in errors.items():
+        # Parse layer index from module path
+        parts = module_path.split(".")
+        if "layers" in parts:
+            layer_idx = int(parts[parts.index("layers") + 1])
+        else:
+            layer_idx = -1
+
+        # Determine matrix type from last segment of module path
+        matrix_type = parts[-1] if parts else "unknown"
+
+        kappa_val = kappas.get(module_path, float("nan"))
+        dw_norm_val = dw_norms.get(module_path, float("nan"))
+
+        row = {
+            "name": module_path,
+            "layer": layer_idx,
+            "type": matrix_type,
+            "kappa": kappa_val,
+            "dw_norm": dw_norm_val,
+            "dy_norm": error_val,
+        }
+        results_rows.append(row)
+
+        kappa_str = f"{kappa_val:.2f}" if not (
+            isinstance(kappa_val, float) and (kappa_val != kappa_val)
+        ) else "N/A"
+        dw_str = f"{dw_norm_val:.6f}" if not (
+            isinstance(dw_norm_val, float) and (dw_norm_val != dw_norm_val)
+        ) else "N/A"
+
+        print(
+            f"  {module_path:<50s}  {layer_idx:>5d}  {matrix_type:>10s}  "
+            f"{kappa_str:>12s}  {dw_str:>14s}  {error_val:>14.6f}"
+        )
+
+    print("  " + "-" * 108)
+
+    # Summary stats
+    n = len(results_rows)
+    mean_err = sum(r["dy_norm"] for r in results_rows) / n if n > 0 else 0.0
+    max_err_row = max(results_rows, key=lambda r: r["dy_norm"]) if results_rows else {}
+    mean_dw = sum(r["dw_norm"] for r in results_rows if not (
+        isinstance(r["dw_norm"], float) and (r["dw_norm"] != r["dw_norm"])
+    )) / n if n > 0 else 0.0
+    valid_dw_rows = [r for r in results_rows if not (
+        isinstance(r["dw_norm"], float) and (r["dw_norm"] != r["dw_norm"])
+    )]
+    max_dw_row = max(valid_dw_rows, key=lambda r: r["dw_norm"]) if valid_dw_rows else {}
+
+    print(f"  Matrices reported: {n}")
+    print(f"  Mean ||dy||/||y||: {mean_err:.6f}")
+    print(f"  Max ||dy||/||y||: {max_err_row.get('dy_norm', 0):.6f} at {max_err_row.get('name', 'N/A')}")
+    print(f"  Mean ||dW||/||W||: {mean_dw:.6f}")
+    print(f"  Max ||dW||/||W||: {max_dw_row.get('dw_norm', 0):.6f} at {max_dw_row.get('name', 'N/A')}")
+
+    # ── JSON export ─────────────────────────────────────────────
+    if args.output:
+        output_dict = {
+            "checkpoint": args.checkpoint,
+            "null_max_error": max_null_err,
+            "num_matrices": n,
+            "results": results_rows,
+        }
+        with open(args.output, "w") as f:
+            json.dump(output_dict, f, indent=2)
+        print(f"\n  Results saved to {args.output}")
 
     print("\nMeasurement complete.")
     sys.exit(0)
