@@ -99,12 +99,15 @@ src/
     ├── training_utils.py          # Dataloaders, train loop, eval PPL, checkpoints
     ├── train_scaled_baseline.py   # Canonical FP16 baseline training
     ├── train_cond_regularized.py  # FP16 + condition regularization
-    ├── train_qat*.py              # QAT variants
-    ├── eval_quantization.py       # Unified PTQ evaluation
-    ├── ptq_eval.py                # Single PTQ run
-    ├── compare_adaptive_grid.py   # Adaptive grid comparison
+    ├── train_qat_fp4_opt.py       # QAT (FP8/FP4 with STE)
+    ├── run_full_comparison.py     # 16-config PTQ comparison
+    ├── write_final_report.py      # Final report generation
+    ├── measure_qerror.py          # Per-matrix ||dy||/||y|| measurement
+    ├── trace_error_propagation.py # Error propagation trace
+    ├── validate_theorem1.py       # Theorem 1 validation
     ├── validate_theory.py         # Layer sensitivity validation
-    └── validate_rmsnorm.py        # RMSNorm ablation validation
+    ├── validate_rmsnorm.py        # RMSNorm ablation validation
+    └── legacy/                    # Archived Phase 1-2 scripts
 ```
 
 ## Quantization Notes
@@ -177,7 +180,7 @@ A numerical analysis course project that systematically investigates how classic
 - Lockfile: Not present — no `requirements.lock`, `poetry.lock`, or `pipfile.lock`
 ## Frameworks
 - PyTorch >= 2.3.0 (`torch`) — all model definitions, quantization, and training loops
-- HuggingFace Transformers >= 4.45.0 (`transformers`) — used for Gemma 4 E2B loading in `train_gemma4.py`, `AutoTokenizer` fallback in `prepare_data.py`, and `save_pretrained` serialization
+- HuggingFace Transformers >= 4.45.0 (`transformers`) — used for Gemma 4 E2B loading in `legacy/train_gemma4.py`, `AutoTokenizer` fallback in `legacy/prepare_data.py`, and `save_pretrained` serialization
 - Not detected — no test framework found in the codebase
 - Not detected — no build system (setup.py, pyproject.toml, or Makefile are absent; the project is run via `python -m` or script path)
 ## Key Dependencies
@@ -191,7 +194,7 @@ A numerical analysis course project that systematically investigates how classic
 - `einops >= 0.8.0` — listed in requirements; not directly imported in `src/` (used internally by HuggingFace `transformers`)
 - `accelerate >= 0.30.0` — listed in requirements; not directly imported in `src/`
 - `wandb >= 0.17.0` — listed in requirements; not imported in `src/` (no experiment logging integration)
-- `peft` — used in `train_gemma4.py` for LoRA fine-tuning (`peft.LoraConfig`, `peft.get_peft_model`)
+- `peft` — used in `legacy/train_gemma4.py` for LoRA fine-tuning (`peft.LoraConfig`, `peft.get_peft_model`)
 ## Configuration
 - `.sshpass` file (gitignored) stores SSH password for remote GPU server
 - SSH-based remote execution via `sshpass` utility
@@ -207,7 +210,7 @@ A numerical analysis course project that systematically investigates how classic
 - GPU with CUDA (NVIDIA) recommended for model training/evaluation
 - Remote GPU server: `bi_group2@lulab_4090` (conda env `sle`)
 - Local machine for editing, data preparation, and result inspection
-- Minimum ~10GB GPU memory for Gemma 4 E2B + LoRA (`train_gemma4.py`)
+- Minimum ~10GB GPU memory for Gemma 4 E2B + LoRA (`legacy/train_gemma4.py`)
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
@@ -244,7 +247,7 @@ A numerical analysis course project that systematically investigates how classic
 - All intra-project imports use absolute `src.` package paths: `from src.model.config import MicroGemmaFPConfig`
 - No relative imports (`from .config import ...`) observed
 - No import aliases or path rewrites configured
-- Some files use `import os` inline inside functions (late imports) rather than at module top — e.g., `import os` at line 58 of `train_scaled_baseline.py`, line 64 of `train_fp16_baseline.py`, line 161 of `phase2_comparison.py`
+- Some files use `import os` inline inside functions (late imports) rather than at module top — e.g., `import os` at line 58 of `train_scaled_baseline.py`, line 64 of `legacy/train_fp16_baseline.py`, line 161 of `legacy/phase2_comparison.py`
 - Standard library modules are sometimes comma-imported on one line: `import random, os, math`
 ## Error Handling
 - `ValueError` with descriptive message in constructors for invalid config: `raise ValueError(f"Unknown format: {fmt}. Options: {list(FP_FORMAT_SPECS.keys())}")`
@@ -333,7 +336,7 @@ A numerical analysis course project that systematically investigates how classic
 - Purpose: Numerical analysis tools for quantization diagnostics
 - Contains: Condition number estimation (power iteration), differentiable regularization, Lipschitz propagation, per-layer sensitivity reports
 - Depends on: torch, torch.nn.functional
-- Used by: Experiment layer (validate_theory, train_cond_regularized, eval_quantization)
+- Used by: Experiment layer (validate_theory, train_cond_regularized, run_full_comparison)
 - Purpose: Executable scripts that orchestrate training, evaluation, validation, and data preparation
 - Contains: ~18 scripts -- training baselines, QAT variants, PTQ evaluation, grid comparison, theory validation, data preparation
 - Depends on: All other layers (model + quantization + analysis)
@@ -360,19 +363,19 @@ A numerical analysis course project that systematically investigates how classic
 - Examples: `src/experiments/training_utils.py:197-219`
 - Pattern: Check for `.bin` files in data_dir, fall back to `CharTokenizer` + `LocalTextDataset` if absent
 ## Entry Points
-- Location: `src/experiments/train_scaled_baseline.py`, `src/experiments/train_qat*.py`, `src/experiments/train_cond_regularized.py`
+- Location: `src/experiments/train_scaled_baseline.py`, `src/experiments/train_qat_fp4_opt.py`, `src/experiments/train_cond_regularized.py`
 - Triggers: Command-line execution via `python src/experiments/<script>.py [args]`
 - Responsibilities: Parse args, create config, instantiate model, create dataloader, run training loop, save checkpoint
-- Location: `src/experiments/eval_quantization.py`, `src/experiments/ptq_eval.py`, `src/experiments/compare_adaptive_grid.py`
+- Location: `src/experiments/legacy/eval_quantization.py`, `src/experiments/legacy/ptq_eval.py`, `src/experiments/legacy/compare_adaptive_grid.py`
 - Triggers: Command-line execution
 - Responsibilities: Load checkpoint, apply quantization, measure perplexity, report results
 - Location: `src/experiments/validate_theory.py`, `src/experiments/validate_rmsnorm.py`
 - Triggers: Command-line execution
 - Responsibilities: Test theoretical predictions (kappa vs MSE, Lipschitz propagation, RMSNorm role)
-- Location: `src/experiments/train_tokenizer.py`, `src/experiments/prepare_data_chunked.py`, `src/experiments/prepare_data.py`
+- Location: `src/experiments/train_tokenizer.py`, `src/experiments/prepare_data_chunked.py`, `src/experiments/legacy/prepare_data.py`
 - Triggers: Command-line execution
 - Responsibilities: Train BPE tokenizer, tokenize datasets, write .bin shards
-- Location: `src/experiments/final_summary.py`
+- Location: `src/experiments/legacy/final_summary.py`
 - Triggers: Command-line execution
 - Responsibilities: Load all saved checkpoints, evaluate PPL, produce comparison table
 ## Architectural Constraints
@@ -391,7 +394,7 @@ A numerical analysis course project that systematically investigates how classic
 - Progressive damping loops in `gptq.py:43-52` for Cholesky decomposition
 - No custom exception types defined anywhere
 - No try/except in training loop for NaN loss recovery
-- FileNotFoundError handling only in `final_summary.py:43` for missing checkpoints
+- FileNotFoundError handling only in `legacy/final_summary.py:43` for missing checkpoints
 ## Cross-Cutting Concerns
 <!-- GSD:architecture-end -->
 

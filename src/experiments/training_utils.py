@@ -55,7 +55,7 @@ class CharTokenizer:
 # Local text dataset (offline fallback)
 # ═══════════════════════════════════════════════════════════════
 
-from src.experiments.large_corpus import LARGE_CORPUS as _DEFAULT_CORPUS
+from src.experiments.legacy.large_corpus import LARGE_CORPUS as _DEFAULT_CORPUS
 
 
 class LocalTextDataset(IterableDataset):

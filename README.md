@@ -56,11 +56,18 @@ src/
 │   ├── lipschitz.py           # Lipschitz constant propagation
 │   └── sensitivity.py         # Per-layer sensitivity + mixed-precision suggestions
 └── experiments/
-    ├── train_scaled_baseline.py   # FP16 baseline training
-    ├── train_qat.py               # QAT (FP8/FP4 with STE)
-    ├── ptq_eval.py                # PTQ evaluation (simple/gptq/mixed)
-    ├── eval_quantization.py       # Unified industry-standard evaluation
-    └── fp4_ptq_compare.py         # FP4 grid comparison benchmark
+    ├── training_utils.py              # Dataloaders, train loop, eval
+    ├── train_scaled_baseline.py       # FP16 baseline training
+    ├── train_cond_regularized.py      # FP16 + condition regularization
+    ├── train_qat_fp4_opt.py           # QAT (FP8/FP4 with STE)
+    ├── run_full_comparison.py         # 16-config PTQ comparison
+    ├── write_final_report.py          # Final report generation
+    ├── measure_qerror.py              # Per-matrix ||dy||/||y|| measurement
+    ├── trace_error_propagation.py     # Error propagation trace
+    ├── validate_theorem1.py           # Theorem 1 validation
+    ├── validate_theory.py             # Layer sensitivity validation
+    ├── validate_rmsnorm.py            # RMSNorm ablation validation
+    └── legacy/                        # Archived Phase 1-2 scripts
 ```
 
 ## Quick Start
@@ -81,16 +88,14 @@ python src/experiments/prepare_data_chunked.py
 ./remote_python.sh src/experiments/train_scaled_baseline.py \
     --data_dir data/real_tiers --max_steps 2000
 
-# 5. Run quantization evaluation (remote)
-./remote_python.sh src/experiments/eval_quantization.py \
-    --checkpoint checkpoints/scaled_fp16_baseline/model.pt \
-    --data_dir data/real_tiers \
-    --methods simple_pc gptq mixed \
-    --formats fp8_e4m3 fp4_e2m1
+# 5. Run full PTQ comparison (remote)
+./remote_python.sh src/experiments/run_full_comparison.py \
+    --fp16_checkpoint checkpoints/scaled_fp16_baseline/model.pt \
+    --cond_checkpoint checkpoints/cond_regularized/model.pt \
+    --data_dir data/real_tiers
 
-# 6. Run QAT experiments (remote)
-./remote_python.sh src/experiments/train_qat.py \
-    --quant fp8 --data_dir data/real_tiers --max_steps 2000
+# 6. Generate final report
+python src/experiments/write_final_report.py
 ```
 
 ## Requirements
