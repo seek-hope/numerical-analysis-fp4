@@ -1,0 +1,114 @@
+{
+  "fp16_ppl": 1275.5754839014505,
+  "avg_block_ratio": 1221.1887549995179,
+  "per_layer": [
+    {
+      "layer": 0,
+      "layer_type": "sliding",
+      "ppl_normal": 1265.4064947545935,
+      "ppl_no_norm": 2126.7555702044397,
+      "delta_normal": -10.16898914685703,
+      "delta_no_norm": 851.1800863029891,
+      "block_ratio": 83.70351015332402
+    },
+    {
+      "layer": 1,
+      "layer_type": "sliding",
+      "ppl_normal": 1277.1205257979661,
+      "ppl_no_norm": 2433.170077802393,
+      "delta_normal": 1.5450418965156132,
+      "delta_no_norm": 1157.5945939009423,
+      "block_ratio": 749.2318470531808
+    },
+    {
+      "layer": 2,
+      "layer_type": "full",
+      "ppl_normal": 1286.4380391516688,
+      "ppl_no_norm": 6811.124130854629,
+      "delta_normal": 10.862555250218293,
+      "delta_no_norm": 5535.548646953178,
+      "block_ratio": 509.59912464812885
+    },
+    {
+      "layer": 3,
+      "layer_type": "sliding",
+      "ppl_normal": 1262.7245625256176,
+      "ppl_no_norm": 13846.442044262949,
+      "delta_normal": -12.850921375832968,
+      "delta_no_norm": 12570.866560361499,
+      "block_ratio": 978.2074135168136
+    },
+    {
+      "layer": 4,
+      "layer_type": "sliding",
+      "ppl_normal": 1267.1287291064266,
+      "ppl_no_norm": 6078.794508386204,
+      "delta_normal": -8.446754795023935,
+      "delta_no_norm": 4803.219024484753,
+      "block_ratio": 568.6466744973319
+    },
+    {
+      "layer": 5,
+      "layer_type": "full",
+      "ppl_normal": 1287.089295615217,
+      "ppl_no_norm": 8694.281334535974,
+      "delta_normal": 11.513811713766472,
+      "delta_no_norm": 7418.705850634523,
+      "block_ratio": 644.3310030651585
+    },
+    {
+      "layer": 6,
+      "layer_type": "sliding",
+      "ppl_normal": 1261.6772344609449,
+      "ppl_no_norm": 11476.906610302074,
+      "delta_normal": -13.898249440505651,
+      "delta_no_norm": 10201.331126400624,
+      "block_ratio": 734.001153891326
+    },
+    {
+      "layer": 7,
+      "layer_type": "sliding",
+      "ppl_normal": 1279.2904463838995,
+      "ppl_no_norm": 5954.539683775114,
+      "delta_normal": 3.714962482448982,
+      "delta_no_norm": 4678.964199873663,
+      "block_ratio": 1259.4916427767505
+    },
+    {
+      "layer": 8,
+      "layer_type": "full",
+      "ppl_normal": 1273.5460468840959,
+      "ppl_no_norm": 5128.675659894535,
+      "delta_normal": -2.0294370173546668,
+      "delta_no_norm": 3853.100175993084,
+      "block_ratio": 1898.6054472464134
+    },
+    {
+      "layer": 9,
+      "layer_type": "sliding",
+      "ppl_normal": 1280.2297661138516,
+      "ppl_no_norm": 4607.395130584919,
+      "delta_normal": 4.654282212401085,
+      "delta_no_norm": 3331.819646683468,
+      "block_ratio": 715.8611134077803
+    },
+    {
+      "layer": 10,
+      "layer_type": "sliding",
+      "ppl_normal": 1281.5566556364292,
+      "ppl_no_norm": 4173.064691931671,
+      "delta_normal": 5.981171734978716,
+      "delta_no_norm": 2897.4892080302207,
+      "block_ratio": 484.4350465788007
+    },
+    {
+      "layer": 11,
+      "layer_type": "full",
+      "ppl_normal": 1276.1533958162706,
+      "ppl_no_norm": 4759.315819194883,
+      "delta_normal": 0.5779119148201062,
+      "delta_no_norm": 3483.7403352934325,
+      "block_ratio": 6028.151083159204
+    }
+  ]
+}

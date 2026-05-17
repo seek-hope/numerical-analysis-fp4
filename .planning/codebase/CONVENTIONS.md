@@ -190,7 +190,7 @@ def gptq_quantize_weight(
 - Core logic modules (`fp_quantizer.py`, `training_utils.py`, `transformer.py`): 200-270 lines
 - Analysis modules (`condition.py`, `lipschitz.py`, `sensitivity.py`): 50-170 lines
 - Experiment scripts: 80-250 lines
-- `smoke_gemma4.py`: ~20 lines
+- `tests/smoke_gemma4.py`: ~20 lines
 
 ## Common Patterns
 

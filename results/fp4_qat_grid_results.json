@@ -1,0 +1,22 @@
+{
+  "fp8_baseline": {
+    "train": 1.01,
+    "eval": 1.02
+  },
+  "fp4_e2m1_vanilla": {
+    "train": 1.01,
+    "eval": 13.86
+  },
+  "fp4_e2m1_sr": {
+    "train": 3.09,
+    "eval": 1.71
+  },
+  "fp4_e2m1_combined": {
+    "train": 3.01,
+    "eval": 1.67
+  },
+  "fp4_nf4_sr": {
+    "train": 7.08,
+    "eval": 3.71
+  }
+}

@@ -74,7 +74,7 @@ These scripts do NOT use assertions, do NOT fail on unexpected results, and are 
 **E2E Tests:** None exist.
 
 **Smoke Tests:**
-- `/home/rimuru/Projects/Code/homework/Numerical_Analysis/proj/smoke_gemma4.py` — Loads a Gemma 4 E2B model and prints parameter count. This is the closest thing to a smoke test but is not run in CI and has no assertions.
+- `tests/smoke_gemma4.py` — Loads a Gemma 4 E2B model and prints parameter count. This is the closest thing to a smoke test but is not run in CI and has no assertions.
 
 ## Current Gaps
 

@@ -76,8 +76,7 @@ proj/
 │       └── .cache/                    # HuggingFace download cache
 ├── docs/
 │   ├── PROPOSAL.md                    # Project proposal (14KB)
-│   ├── REPORT.md                      # Experiment report with tables (7.7KB)
-│   └── numerical_analysis_training_project_proposal.md  # Original proposal (2.5KB)
+│   └── REPORT.md                      # Experiment report with tables (7.7KB)
 ├── checkpoints/                       # Generated training checkpoints (gitignored)
 │   ├── fp16_baseline/
 │   ├── qat_fp8/
@@ -90,7 +89,8 @@ proj/
 ├── sync.sh                            # rsync to remote GPU server
 ├── remote_python.sh                   # Run Python script on remote via sshpass
 ├── remote_run.sh                      # Run arbitrary command on remote via sshpass
-├── smoke_gemma4.py                    # Gemma 4 E2B smoke test
+├── tests/
+│   └── smoke_gemma4.py                # Gemma 4 E2B smoke test
 └── .sshpass                           # SSH password for remote server (gitignored)
 ```
 
@@ -138,7 +138,7 @@ proj/
 - `sync.sh`: rsync local project to remote GPU server, excludes .git, __pycache__, .venv, wandb
 - `remote_python.sh`: SSH + conda activate + PYTHONPATH set, runs a Python script on remote
 - `remote_run.sh`: SSH + conda activate + PYTHONPATH set, runs arbitrary command on remote
-- `smoke_gemma4.py`: Quick test to verify Gemma 4 model loads on remote GPU
+- `tests/smoke_gemma4.py`: Quick test to verify Gemma 4 model loads on remote GPU
 
 ## Key File Locations
 
@@ -163,7 +163,7 @@ proj/
 **Testing:**
 - No test files detected (no `test_*.py` or `*_test.py` files, no test directory)
 - `src/experiments/validate_theory.py` and `validate_rmsnorm.py` serve as validation scripts but are not automated tests
-- `smoke_gemma4.py` is a manual smoke test
+- `tests/smoke_gemma4.py` is a manual smoke test
 
 ## Naming Conventions
 

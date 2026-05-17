@@ -1,0 +1,142 @@
+{
+  "fp16_ppl": 1267.7025239824848,
+  "correlations": {
+    "kappa": -0.01242184777157678,
+    "propagation": 0.5692951234943445,
+    "combined": 0.5854469865612922
+  },
+  "per_layer": [
+    {
+      "layer": 0,
+      "layer_type": "sliding",
+      "kappa": 16356.352421379328,
+      "lipschitz": 5.4350810050964355,
+      "propagation_factor": 12073610905.63926,
+      "quantization_mse": 1.3046618143932303e-05,
+      "predicted_error": 713300635562.809,
+      "ppl": 1297.6750946001382,
+      "ppl_degradation": 29.972570617653446
+    },
+    {
+      "layer": 1,
+      "layer_type": "sliding",
+      "kappa": 13836.494430213264,
+      "lipschitz": 6.831903457641602,
+      "propagation_factor": 1767239683.7128484,
+      "quantization_mse": 1.2329973696606686e-05,
+      "predicted_error": 85862316809.7477,
+      "ppl": 1259.8915896307917,
+      "ppl_degradation": -7.810934351693049
+    },
+    {
+      "layer": 2,
+      "layer_type": "full",
+      "kappa": 35.266577780425955,
+      "lipschitz": 7.653573036193848,
+      "propagation_factor": 230903876.57575732,
+      "quantization_mse": 1.441347737644994e-05,
+      "predicted_error": 30915688.869740378,
+      "ppl": 1269.8974730403568,
+      "ppl_degradation": 2.194949057872009
+    },
+    {
+      "layer": 3,
+      "layer_type": "sliding",
+      "kappa": 13075.537503474592,
+      "lipschitz": 7.203607559204102,
+      "propagation_factor": 32053922.24354723,
+      "quantization_mse": 1.4941226039673934e-05,
+      "predicted_error": 1620070253.1329558,
+      "ppl": 1277.777837526933,
+      "ppl_degradation": 10.075313544448136
+    },
+    {
+      "layer": 4,
+      "layer_type": "sliding",
+      "kappa": 6808.7109974207,
+      "lipschitz": 7.700130939483643,
+      "propagation_factor": 4162776.256074512,
+      "quantization_mse": 1.4782769164175377e-05,
+      "predicted_error": 108974746.37464191,
+      "ppl": 1263.3952667707558,
+      "ppl_degradation": -4.307257211728938
+    },
+    {
+      "layer": 5,
+      "layer_type": "full",
+      "kappa": 32.23670840625658,
+      "lipschitz": 8.094435691833496,
+      "propagation_factor": 514276.27750188333,
+      "quantization_mse": 1.53523167259558e-05,
+      "predicted_error": 64958.22412426678,
+      "ppl": 1281.7432972828715,
+      "ppl_degradation": 14.040773300386718
+    },
+    {
+      "layer": 6,
+      "layer_type": "sliding",
+      "kappa": 34346.4922609065,
+      "lipschitz": 8.121155738830566,
+      "propagation_factor": 63325.5036648193,
+      "quantization_mse": 1.5931008561268163e-05,
+      "predicted_error": 8681258.298095537,
+      "ppl": 1274.4456098171984,
+      "ppl_degradation": 6.743085834713611
+    },
+    {
+      "layer": 7,
+      "layer_type": "sliding",
+      "kappa": 20346.471911623452,
+      "lipschitz": 8.486322402954102,
+      "propagation_factor": 7462.066683063514,
+      "quantization_mse": 1.5796862636099853e-05,
+      "predicted_error": 603439.3956421798,
+      "ppl": 1273.1785169273317,
+      "ppl_degradation": 5.475992944846894
+    },
+    {
+      "layer": 8,
+      "layer_type": "full",
+      "kappa": 30.897390200265175,
+      "lipschitz": 8.89554214477539,
+      "propagation_factor": 838.854626465482,
+      "quantization_mse": 1.5893632315041484e-05,
+      "predicted_error": 103.32848993393036,
+      "ppl": 1269.3317212409922,
+      "ppl_degradation": 1.6291972585074745
+    },
+    {
+      "layer": 9,
+      "layer_type": "sliding",
+      "kappa": 50318.1559138356,
+      "lipschitz": 8.947704315185547,
+      "propagation_factor": 93.75082109517462,
+      "quantization_mse": 1.603183128784743e-05,
+      "predicted_error": 18888.23439448755,
+      "ppl": 1276.609944589111,
+      "ppl_degradation": 8.907420606626147
+    },
+    {
+      "layer": 10,
+      "layer_type": "sliding",
+      "kappa": 3382.7494141271045,
+      "lipschitz": 9.41696548461914,
+      "propagation_factor": 9.955523490905762,
+      "quantization_mse": 1.5625370178730324e-05,
+      "predicted_error": 133.12177092639482,
+      "ppl": 1286.4072457629925,
+      "ppl_degradation": 18.704721780507725
+    },
+    {
+      "layer": 11,
+      "layer_type": "full",
+      "kappa": 29.291956565588233,
+      "lipschitz": 9.955523490905762,
+      "propagation_factor": 1.0,
+      "quantization_mse": 1.5503005846584027e-05,
+      "predicted_error": 0.11533372977564554,
+      "ppl": 1285.1804532204624,
+      "ppl_degradation": 17.477929237977605
+    }
+  ]
+}
