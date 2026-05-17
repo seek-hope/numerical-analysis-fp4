@@ -69,7 +69,10 @@ Plans:
   3. Results reported for 3 random seeds (42, 123, 456) with mean +/- std and bootstrap 95% CI for the correlation coefficient
   4. The report states whether Theorem 1's bound holds empirically (YES/NO/QUALIFIED) with supporting evidence
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md -- Multi-seed theorem 1 validation script with Pearson correlation, bootstrap CI, and verdict rubric
 
 ### Phase 4: Error Propagation Trace
 
@@ -106,6 +109,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
-| 3. Theorem 1 Validation | 0/0 | Not started | - |
+| 3. Theorem 1 Validation | 0/1 | Not started | - |
 | 4. Error Propagation Trace | 0/0 | Not started | - |
 | 5. Extended PTQ Comparison and Final Report | 0/0 | Not started | - |
