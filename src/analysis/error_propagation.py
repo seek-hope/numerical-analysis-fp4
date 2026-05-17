@@ -52,7 +52,10 @@ class ErrorPropagationTracker:
         Returns self for method chaining.
         """
         self._register_linear_pre_hooks(model)
-        print(f"[Tracker] Registered {len(self._hook_handles)} Linear pre-hooks")
+        self._register_p_point_hooks(model)
+        self._register_g_point_hooks(model)
+        print(f"[Tracker] Registered {len(self._hook_handles)} hooks"
+              f" (Linear pre-hooks + P-points + G-points)")
         return self
 
     def _register_linear_pre_hooks(self, model: nn.Module):
@@ -89,6 +92,167 @@ class ErrorPropagationTracker:
             self._activations[module_path] = x
 
         return _input_hook
+
+    # ── Per-layer P-point Hooks ──────────────────────────────
+
+    def _register_p_point_hooks(self, model: nn.Module):
+        """Register 5 hooks per transformer layer (P0-P5).
+
+        P0: forward_pre_hook on the layer itself (captures layer input).
+        P1: forward_hook on layer.input_norm (captures norm output).
+        P2: forward_hook on layer.attention (captures attention output).
+        P4: forward_hook on layer.post_attn_norm (captures post-attn norm output).
+        P5: forward_hook on layer.ffn (captures FFN output).
+
+        P3 and P6 are computed via compute_p3_p6().
+        """
+        # Access layers via model.model.layers (MicroGemmaFPModel path)
+        layers = None
+        if hasattr(model, 'model') and hasattr(model.model, 'layers'):
+            layers = model.model.layers
+        elif hasattr(model, 'layers'):
+            layers = model.layers
+        else:
+            print("[Tracker] WARNING: could not find model.layers for P-point hooks")
+            return
+
+        for layer_idx, layer in enumerate(layers):
+            # P0: pre-hook on the layer itself (captures input to forward)
+            handle = layer.register_forward_pre_hook(
+                self._make_p_hook(layer_idx, 'P0')
+            )
+            self._hook_handles.append(handle)
+
+            # P1: after input_norm
+            handle = layer.input_norm.register_forward_hook(
+                self._make_p_hook(layer_idx, 'P1')
+            )
+            self._hook_handles.append(handle)
+
+            # P2: after attention
+            handle = layer.attention.register_forward_hook(
+                self._make_p_hook(layer_idx, 'P2')
+            )
+            self._hook_handles.append(handle)
+
+            # P4: after post_attn_norm
+            handle = layer.post_attn_norm.register_forward_hook(
+                self._make_p_hook(layer_idx, 'P4')
+            )
+            self._hook_handles.append(handle)
+
+            # P5: after FFN
+            handle = layer.ffn.register_forward_hook(
+                self._make_p_hook(layer_idx, 'P5')
+            )
+            self._hook_handles.append(handle)
+
+    def _make_p_hook(self, layer_idx: int, point_id: str):
+        """Factory function returning a P-point hook closure.
+
+        For pre-hook (P0): captures input_args[0].
+        For forward hooks (P1/P2/P4/P5): captures output tensor.
+
+        Stores in ``self._p_points[f"{layer_idx}_{point_id}"]``.
+        All tensors are detached, cloned, and moved to CPU.
+        """
+
+        @torch.no_grad()
+        def _p_hook(module, input_args, output=None):
+            if output is not None:
+                tensor = output.detach().clone().cpu()
+            else:
+                tensor = input_args[0].detach().clone().cpu()
+            self._p_points[f"{layer_idx}_{point_id}"] = tensor
+
+        return _p_hook
+
+    def compute_p3_p6(self):
+        """Compute residual-add outputs P3 and P6 from captured P-points.
+
+        P3 = P0 + P2 (pre-norm attention residual add)
+        P6 = P3 + P5 (pre-norm FFN residual add)
+
+        Computed for every layer where source tensors exist.
+        """
+        for key in list(self._p_points.keys()):
+            if not key.endswith('_P0'):
+                continue
+            layer_prefix = key[:-3]  # Remove '_P0' suffix
+
+            p0_key = key
+            p2_key = f"{layer_prefix}_P2"
+            p5_key = f"{layer_prefix}_P5"
+
+            # Compute P3 = P0 + P2
+            if p2_key in self._p_points:
+                p3_key = f"{layer_prefix}_P3"
+                if p3_key not in self._p_points:
+                    p3 = self._p_points[p0_key] + self._p_points[p2_key]
+                    self._p_points[p3_key] = p3.clone()
+
+            # Compute P6 = P3 + P5
+            p3_key = f"{layer_prefix}_P3"
+            if p3_key in self._p_points and p5_key in self._p_points:
+                p6_key = f"{layer_prefix}_P6"
+                if p6_key not in self._p_points:
+                    p6 = self._p_points[p3_key] + self._p_points[p5_key]
+                    self._p_points[p6_key] = p6.clone()
+
+    # ── Global G-point Hooks ─────────────────────────────────
+
+    def _register_g_point_hooks(self, model: nn.Module):
+        """Register 3 global measurement hooks (G0-G2).
+
+        G0: forward_hook on model.model.embed_tokens (after embedding).
+        G1: forward_hook on model.model.norm (after final RMSNorm).
+        G2: forward_hook on model.lm_head (after output projection).
+        """
+        # G0: embed_tokens
+        if hasattr(model, 'model') and hasattr(model.model, 'embed_tokens'):
+            handle = model.model.embed_tokens.register_forward_hook(
+                self._make_g_hook('G0')
+            )
+            self._hook_handles.append(handle)
+
+        # G1: norm (final RMSNorm after layer stack)
+        if hasattr(model, 'model') and hasattr(model.model, 'norm'):
+            handle = model.model.norm.register_forward_hook(
+                self._make_g_hook('G1')
+            )
+            self._hook_handles.append(handle)
+
+        # G2: lm_head (final projection to vocab logits)
+        if hasattr(model, 'lm_head'):
+            handle = model.lm_head.register_forward_hook(
+                self._make_g_hook('G2')
+            )
+            self._hook_handles.append(handle)
+
+    def _make_g_hook(self, point_id: str):
+        """Factory function returning a G-point hook closure.
+
+        Captures module output, handling tuple outputs (e.g. lm_head
+        returning (logits,) tuple) by taking tensor[0] in that case.
+        """
+
+        @torch.no_grad()
+        def _g_hook(module, input_args, output):
+            if isinstance(output, tuple):
+                tensor = output[0].detach().clone().cpu()
+            elif isinstance(output, torch.Tensor):
+                tensor = output.detach().clone().cpu()
+            else:
+                # Fallback: try to extract tensor
+                tensor = torch.as_tensor(output).detach().clone().cpu()
+            self._g_points[point_id] = tensor
+
+        return _g_hook
+
+    @property
+    def p_points(self) -> dict[str, torch.Tensor]:
+        """Return merged P-point and G-point dict (copy, not reference)."""
+        return {**self._p_points, **self._g_points}
 
     def detach(self):
         """Remove all registered hooks.
