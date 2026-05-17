@@ -33,15 +33,15 @@
 
 ### Extended PTQ Comparison
 
-- [ ] **COMP-01**: Re-run 24-config PTQ comparison (2 checkpoints × 2 formats × 6 methods) with clean data split, reporting both PPL and per-matrix ||δy||/||y||
-- [ ] **COMP-02**: For GPTQ method specifically, compare ||δy||/||y|| against round-to-nearest — quantify whether column compensation reduces output error beyond what weight-space metrics predict
-- [ ] **COMP-03**: For Lloyd-Max adaptive grid, compare per-matrix ||δy||/||y|| against uniform E2M1 grid — test whether distribution-adaptive grids reduce output-space error
+- [x] **COMP-01**: Re-run 24-config PTQ comparison (2 checkpoints × 2 formats × 6 methods) with clean data split, reporting both PPL and per-matrix ||δy||/||y||
+- [x] **COMP-02**: For GPTQ method specifically, compare ||δy||/||y|| against round-to-nearest — quantify whether column compensation reduces output error beyond what weight-space metrics predict
+- [x] **COMP-03**: For Lloyd-Max adaptive grid, compare per-matrix ||δy||/||y|| against uniform E2M1 grid — test whether distribution-adaptive grids reduce output-space error
 
 ### Reporting
 
-- [ ] **REPORT-01**: Generate per-matrix error summary table: `{name, layer, type, κ, ||δW||/||W||, ||δy||/||y||, tightness_ratio, norm_attenuation}`
-- [ ] **REPORT-02**: Generate error propagation waterfall data for visualization (||δ||/||y|| vs measurement point for selected layers)
-- [ ] **REPORT-03**: Update REPORT.md with corrected κ values, per-matrix error measurements, and revised theoretical assessment
+- [x] **REPORT-01**: Generate per-matrix error summary table: `{name, layer, type, κ, ||δW||/||W||, ||δy||/||y||, tightness_ratio, norm_attenuation}`
+- [x] **REPORT-02**: Generate error propagation waterfall data for visualization (||δ||/||y|| vs measurement point for selected layers)
+- [x] **REPORT-03**: Update REPORT.md with corrected κ values, per-matrix error measurements, and revised theoretical assessment
 
 ### Out of Scope
 
@@ -86,12 +86,12 @@
 | TRACE-01 | Phase 4 (Error Propagation Trace) | Complete |
 | TRACE-02 | Phase 4 (Error Propagation Trace) | Complete |
 | TRACE-03 | Phase 4 (Error Propagation Trace) | Complete |
-| COMP-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
-| COMP-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
-| COMP-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
-| REPORT-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
-| REPORT-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
-| REPORT-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Pending |
+| COMP-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
+| COMP-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
+| COMP-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
+| REPORT-01 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
+| REPORT-02 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
+| REPORT-03 | Phase 5 (Extended PTQ Comparison and Final Report) | Complete |
 
 **Coverage:**
 - v1 requirements: 20 total

@@ -10,7 +10,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 - [x] **Phase 2: Core Measurement Protocol** - Implement ErrorPropagationTracker with single-pass capture and per-matrix ||dy||/||y|| computation (completed 2026-05-17)
 - [x] **Phase 3: Theorem 1 Validation** - Test kappa correlation with ||dy||/||y|| across 72 matrices with Bonferroni correction and multi-seed rigor (completed 2026-05-17)
 - [x] **Phase 4: Error Propagation Trace** - Trace quantization error through the full layer pipeline with RMSNorm attenuation and parallel/orthogonal decomposition (completed 2026-05-17)
-- [ ] **Phase 5: Extended PTQ Comparison and Final Report** - Re-run 24-config PTQ comparison with clean data and both metrics; produce final report
+- [x] **Phase 5: Extended PTQ Comparison and Final Report** - Re-run 24-config PTQ comparison with clean data and both metrics; produce final report (completed 2026-05-17)
 
 ## Phase Details
 
@@ -108,8 +108,8 @@ Plans:
 
 **Wave 1**
 
-- [ ] 05-01-PLAN.md -- 24-config PTQ comparison script (run_full_comparison.py): method dispatch for 6 quantizers, PPL + per-matrix ||dy||/||y||, GPTQ vs RTN comparison, Lloyd-Max vs uniform comparison, per-matrix summary table, JSON export
-- [ ] 05-02-PLAN.md -- Final report generation script (write_final_report.py): reads all Phase 3/4/5 JSON, generates REPORT.md with 10 sections, corrected methodology, revised theoretical assessment
+- [x] 05-01-PLAN.md -- 24-config PTQ comparison script (run_full_comparison.py): method dispatch for 6 quantizers, PPL + per-matrix ||dy||/||y||, GPTQ vs RTN comparison, Lloyd-Max vs uniform comparison, per-matrix summary table, JSON export
+- [x] 05-02-PLAN.md -- Final report generation script (write_final_report.py): reads all Phase 3/4/5 JSON, generates REPORT.md with 10 sections, corrected methodology, revised theoretical assessment
 
 ## Progress
 
@@ -119,4 +119,4 @@ Plans:
 | 2. Core Measurement Protocol | 2/2 | Complete   | 2026-05-17 |
 | 3. Theorem 1 Validation | 1/1 | Complete   | 2026-05-17 |
 | 4. Error Propagation Trace | 1/1 | Complete    | 2026-05-17 |
-| 5. Extended PTQ Comparison and Final Report | 0/2 | Ready (planned) | - |
+| 5. Extended PTQ Comparison and Final Report | 2/2 | Complete    | 2026-05-17 |
