@@ -22,6 +22,7 @@ import os
 import sys
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.analysis.error_propagation import ErrorPropagationTracker
@@ -77,11 +78,23 @@ def _resolve_module(model: torch.nn.Module, module_path: str):
     """Resolve a module from a dot-separated path.
 
     Splits module_path by '.' and traverses model attributes.
+    Handles integer indices for nn.ModuleList / nn.Sequential.
+    Strips trailing .weight to resolve the parent nn.Module.
     Returns the resolved nn.Module or None if not found.
     """
+    # Strip .weight suffix — we want the Linear module, not its Parameter
+    if module_path.endswith('.weight'):
+        module_path = module_path.rsplit('.weight', 1)[0]
+
     obj = model
     for part in module_path.split('.'):
-        if hasattr(obj, part):
+        if part.isdigit():
+            idx = int(part)
+            if isinstance(obj, (nn.ModuleList, nn.Sequential)) and idx < len(obj):
+                obj = obj[idx]
+            else:
+                return None
+        elif hasattr(obj, part):
             obj = getattr(obj, part)
         else:
             return None

@@ -42,7 +42,7 @@ from src.model.transformer import MicroGemmaFPForCausalLM
 from src.quantization.fp_quantizer import FPQuantizer
 from src.quantization.gptq import GPTQQuantizer
 from src.quantization.adaptive_grid import AdaptiveGridQuantizer
-from src.quantization.fp4_grids import MXFP4Quantizer, FP4_E2M1_GRID, build_fp8_e4m3_grid
+from src.quantization.fp4_grids import MXFP4Quantizer, FP4_E2M1_GRID
 from src.quantization.outlier_rotation import DuQuantStyleQuantizer
 from src.quantization.hadamard import hadamard_rotate_weight
 from src.analysis.error_propagation import ErrorPropagationTracker
