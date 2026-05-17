@@ -6,7 +6,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 
 ## Phases
 
-- [ ] **Phase 1: Clean Data Split** - Split each data tier into train/val at .bin file level to prevent calibration-evaluation leakage
+- [x] **Phase 1: Clean Data Split** - Split each data tier into train/val at .bin file level to prevent calibration-evaluation leakage (completed 2026-05-17)
 - [ ] **Phase 2: Core Measurement Protocol** - Implement ErrorPropagationTracker with single-pass capture and per-matrix ||dy||/||y|| computation
 - [ ] **Phase 3: Theorem 1 Validation** - Test kappa correlation with ||dy||/||y|| across 72 matrices with Bonferroni correction and multi-seed rigor
 - [ ] **Phase 4: Error Propagation Trace** - Trace quantization error through the full layer pipeline with RMSNorm attenuation and parallel/orthogonal decomposition
@@ -27,7 +27,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md -- Post-processing split utility, dataloader API update, and --val_split flag for prepare_data_chunked.py
+- [x] 01-01-PLAN.md -- Post-processing split utility, dataloader API update, and --val_split flag for prepare_data_chunked.py
 
 ### Phase 2: Core Measurement Protocol
 **Goal**: A validated measurement pipeline that captures per-matrix output-space relative error ||dy||/||y|| for any quantized weight matrix using single-pass activation capture
@@ -79,7 +79,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Clean Data Split | 0/1 | Planned | - |
+| 1. Clean Data Split | 1/1 | Complete   | 2026-05-17 |
 | 2. Core Measurement Protocol | 0/0 | Not started | - |
 | 3. Theorem 1 Validation | 0/0 | Not started | - |
 | 4. Error Propagation Trace | 0/0 | Not started | - |

@@ -80,9 +80,10 @@ class LocalTextDataset(IterableDataset):
                 if len(chunk) < self.max_seq_len + 1:
                     continue
                 count += 1
+                input_ids = torch.tensor(chunk[:-1], dtype=torch.long)
                 yield {
-                    'input_ids': torch.tensor(chunk[:-1], dtype=torch.long),
-                    'labels': torch.tensor(chunk[1:], dtype=torch.long),
+                    'input_ids': input_ids,
+                    'labels': input_ids.clone(),
                 }
                 if self.max_samples and count >= self.max_samples:
                     return
@@ -112,9 +113,10 @@ class BinDataset(Dataset):
         s = i * self.seq_len
         e = s + self.seq_len + 1
         chunk = self.data[s:e]
+        input_ids = chunk[:-1].clone()
         return {
-            'input_ids': chunk[:-1].clone(),
-            'labels': chunk[1:].clone(),
+            'input_ids': input_ids,
+            'labels': input_ids.clone(),
             'attention_mask': torch.ones(self.seq_len, dtype=torch.long),
         }
 
@@ -289,8 +291,11 @@ def train_epoch(model, dataloader, optimizer, device, max_steps: int = 1500,
 
         input_ids = batch['input_ids'].to(device)
         labels = batch['labels'].to(device)
+        attention_mask = batch.get('attention_mask')
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(device)
 
-        out = model(input_ids, labels=labels)
+        out = model(input_ids, attention_mask=attention_mask, labels=labels)
         loss = out['loss']
 
         if cond_reg_fn is not None:
@@ -325,9 +330,16 @@ def evaluate_perplexity(model, dataloader, device, max_steps: int = 200) -> floa
                 break
             input_ids = batch['input_ids'].to(device)
             labels = batch['labels'].to(device)
-            out = model(input_ids, labels=labels)
-            total_loss += out['loss'].item() * input_ids.size(0)
-            total_tokens += input_ids.size(0)
+            attention_mask = batch.get('attention_mask')
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+
+            out = model(input_ids, attention_mask=attention_mask, labels=labels)
+
+            shift_labels = labels[..., 1:].contiguous()
+            valid_tokens = (shift_labels != -100).sum().item()
+            total_loss += out['loss'].item() * valid_tokens
+            total_tokens += valid_tokens
 
     avg_loss = total_loss / max(total_tokens, 1)
     return math.exp(avg_loss)
