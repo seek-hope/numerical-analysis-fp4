@@ -24,7 +24,10 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
   3. GPTQ Hessian calibration and adaptive grid fitting use training split only (verified by file access audit)
   4. Perplexity evaluation and output error measurement use validation split only (verified by file access audit)
   5. Running a full PTQ + eval pipeline with the clean split produces reproducible results with no calibration-evaluation leakage
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md -- Post-processing split utility, dataloader API update, and --val_split flag for prepare_data_chunked.py
 
 ### Phase 2: Core Measurement Protocol
 **Goal**: A validated measurement pipeline that captures per-matrix output-space relative error ||dy||/||y|| for any quantized weight matrix using single-pass activation capture
@@ -76,7 +79,7 @@ Build a precision measurement protocol that tracks per-matrix weight quantizatio
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Clean Data Split | 0/0 | Not started | - |
+| 1. Clean Data Split | 0/1 | Planned | - |
 | 2. Core Measurement Protocol | 0/0 | Not started | - |
 | 3. Theorem 1 Validation | 0/0 | Not started | - |
 | 4. Error Propagation Trace | 0/0 | Not started | - |
