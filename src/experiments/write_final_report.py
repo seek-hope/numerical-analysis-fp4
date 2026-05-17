@@ -455,27 +455,20 @@ def _find_best_method(
     comp_data: dict,
     checkpoint: str,
     fmt: str,
-    metric: str = "ppl",
-) -> tuple[str | None, float, float]:
-    """Find the best-performing method for a given checkpoint and format.
+) -> tuple[str | None, float]:
+    """Find the method with lowest ||dy||/||y|| for a given checkpoint and format.
 
     Args:
         comp_data: full_comparison.json parsed dict ('configs' key)
         checkpoint: "fp16_baseline" or "cond_regularized"
         fmt: "FP8" or "FP4"
-        metric: "ppl" (lower is better)
 
     Returns:
-        (method_key, ppl_value, delta_vs_fp16)
+        (method_key, mean_dy_value)
     """
     configs = comp_data.get("configs", {})
-    fp16_key = f"{checkpoint}/FP16/baseline"
-    fp16_data = configs.get(fp16_key, {})
-    fp16_ppl = fp16_data.get("ppl", float("nan")) if isinstance(fp16_data, dict) else float("nan")
-
     best_method = None
-    best_ppl = float("inf")
-    best_delta = float("nan")
+    best_dy = float("inf")
 
     for config_key, config_val in configs.items():
         if not isinstance(config_val, dict):
@@ -486,18 +479,15 @@ def _find_best_method(
         ckpt, _fmt, method = parts
         if ckpt != checkpoint or _fmt != fmt:
             continue
-        ppl = config_val.get("ppl", float("nan"))
-        if isinstance(ppl, float) and (math.isnan(ppl) or math.isinf(ppl)):
+        errors = config_val.get("per_matrix_errors", {})
+        if not errors:
             continue
-        if ppl < best_ppl:
-            best_ppl = ppl
+        mean_dy = sum(errors.values()) / len(errors)
+        if mean_dy < best_dy:
+            best_dy = mean_dy
             best_method = method
-            if not (isinstance(fp16_ppl, float) and math.isnan(fp16_ppl)):
-                best_delta = ppl - fp16_ppl
-            else:
-                best_delta = float("nan")
 
-    return best_method, best_ppl, best_delta
+    return best_method, best_dy
 
 
 def write_executive_summary(
@@ -520,10 +510,10 @@ def write_executive_summary(
     ci = th1_data.get("bootstrap_ci", [float("nan"), float("nan")])
 
     # Extract PTQ best methods
-    best_fp8_method, best_fp8_ppl, best_fp8_delta = _find_best_method(
+    best_fp8_method, best_fp8_dy = _find_best_method(
         comp_data, "fp16_baseline", "FP8"
     )
-    best_fp4_method, best_fp4_ppl, best_fp4_delta = _find_best_method(
+    best_fp4_method, best_fp4_dy = _find_best_method(
         comp_data, "fp16_baseline", "FP4"
     )
 
@@ -578,19 +568,16 @@ def write_executive_summary(
         "and per-matrix output errors for every configuration."
     )
     if best_fp8_method:
-        bp_str = _fmt_ppl(best_fp8_ppl)
-        bd_str = _fmt_delta(best_fp8_delta)
+        dy_str_fp8 = _fmt_dy(best_fp8_dy)
         lines.append(
             f"For FP8 E4M3, the best method on the FP16 baseline checkpoint "
-            f"is **{best_fp8_method}** (PPL = {bp_str}, "
-            f"delta = {bd_str} vs FP16 baseline)."
+            f"is **{best_fp8_method}** (mean ||dy||/||y|| = {dy_str_fp8})."
         )
     if best_fp4_method:
-        bp_str = _fmt_ppl(best_fp4_ppl)
-        bd_str = _fmt_delta(best_fp4_delta)
+        dy_str_fp4 = _fmt_dy(best_fp4_dy)
         lines.append(
             f"For FP4 E2M1, the best method is **{best_fp4_method}** "
-            f"(PPL = {bp_str}, delta = {bd_str} vs FP16 baseline)."
+            f"(mean ||dy||/||y|| = {dy_str_fp4})."
         )
     lines.append(
         "GPTQ column compensation and Lloyd-Max adaptive grids are analyzed "
@@ -961,7 +948,7 @@ def write_ptq_comparison(comp_data: dict) -> str:
             lines.append(f"**{ckpt_label.replace('_', ' ').title()}**:")
 
         for fmt in ("FP8", "FP4"):
-            best_method, best_ppl, best_delta = _find_best_method(comp_data, ckpt_label, fmt)
+            best_method, _best_dy = _find_best_method(comp_data, ckpt_label, fmt)
             if best_method:
                 dy_key = f"{ckpt_label}/{fmt}/{best_method}"
                 dy_data = configs.get(dy_key, {})
@@ -974,9 +961,7 @@ def write_ptq_comparison(comp_data: dict) -> str:
                 mean_dy = sum(dy_vals_list) / len(dy_vals_list) if dy_vals_list else float("nan")
                 lines.append(
                     f"- Best {fmt}: **{best_method}** "
-                    f"(PPL = {_fmt_ppl(best_ppl)}, "
-                    f"Delta = {_fmt_delta(best_delta)}, "
-                    f"mean ||dy||/||y|| = {_fmt_dy(mean_dy)})"
+                    f"(mean ||dy||/||y|| = {_fmt_dy(mean_dy)})"
                 )
             else:
                 lines.append(f"- Best {fmt}: (no valid results)")

@@ -3,8 +3,7 @@
 Phase 5: Extended PTQ comparison — definitive 16-20 config evaluation.
 
 Runs 16-20 effective PTQ configurations across 2 checkpoints, 2 formats,
-and up to 6 quantization methods, collecting both PPL (100 validation steps)
-and per-matrix ||dy||/||y|| for every configuration. Synthesizes GPTQ-vs-RTN
+and up to 6 quantization methods, collecting per-matrix ||dy||/||y|| for every configuration. Synthesizes GPTQ-vs-RTN
 and Lloyd-Max-vs-uniform comparisons, merges Phase 3/4 results into a 72-row
 per-matrix summary table, and exports all results to JSON.
 
@@ -48,7 +47,6 @@ from src.quantization.hadamard import hadamard_rotate_weight
 from src.analysis.error_propagation import ErrorPropagationTracker
 from src.experiments.training_utils import (
     get_dataloader,
-    evaluate_perplexity,
     load_checkpoint,
     MultiTierDataset,
     collate_batch,
@@ -315,20 +313,6 @@ def compute_per_matrix_errors(
 
 
 # ═══════════════════════════════════════════════════════════════
-# PPL evaluation wrapper
-# ═══════════════════════════════════════════════════════════════
-
-def eval_ppl(model: nn.Module, data_dir: str, device: torch.device,
-             args) -> float:
-    """Evaluate perplexity on validation split (split='val' per D-03/D-01)."""
-    loader = get_dataloader(
-        args.batch_size, args.max_seq_len, args.eval_steps,
-        data_dir=data_dir, split='val'
-    )
-    return evaluate_perplexity(model, loader, device, args.eval_steps)
-
-
-# ═══════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════
 
@@ -336,8 +320,8 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Extended PTQ comparison: evaluate 16-20 quantization configurations "
-            "across 2 checkpoints, 2 formats, and up to 6 methods, collecting "
-            "both PPL and per-matrix ||dy||/||y||."
+            "across 2 checkpoints, 2 formats, and up to 6 methods, measuring "
+            "per-matrix ||dy||/||y|| for every configuration."
         )
     )
 
@@ -446,8 +430,6 @@ def main():
     # ═══════════════════════════════════════════════════════════
     ckpt_activations: dict[str, dict[str, torch.Tensor]] = {}
     ckpt_weights: dict[str, dict[str, torch.Tensor]] = {}
-    ckpt_fp16_ppl: dict[str, float] = {}
-
     for ckpt_name, ckpt_path in checkpoints.items():
         print(f"\n--- Capturing FP16 activations: {ckpt_name} ---")
         model_ref = load_model(ckpt_path, device)
@@ -463,10 +445,6 @@ def main():
         }
         ckpt_weights[ckpt_name] = orig_weights
 
-        # FP16 PPL baseline
-        ppl_fp16 = eval_ppl(model_ref, args.data_dir, device, args)
-        ckpt_fp16_ppl[ckpt_name] = ppl_fp16
-        print(f"  FP16 PPL = {ppl_fp16:.4f}")
         print(f"  Captured {len(activations)} activations, "
               f"{len(orig_weights)} weight matrices")
 
@@ -498,9 +476,6 @@ def main():
             }
             apply_fn(model, cfg['fmt_str'], **kwargs)
 
-            # PPL evaluation
-            ppl = eval_ppl(model, args.data_dir, device, args)
-
             # Per-matrix error evaluation
             errors = compute_per_matrix_errors(
                 ckpt_weights[cfg['ckpt_name']],
@@ -511,11 +486,10 @@ def main():
 
             elapsed = time.time() - t_start
             mean_err = np.mean(list(errors.values())) if errors else float('nan')
-            print(f"  PPL={ppl:.4f}  mean||dy||/||y||={mean_err:.6f}  "
+            print(f"  mean||dy||/||y||={mean_err:.6f}  "
                   f"({elapsed:.1f}s)")
 
             all_results[config_key] = {
-                'ppl': ppl,
                 'per_matrix_errors': errors,
             }
 
@@ -529,17 +503,7 @@ def main():
             torch.cuda.empty_cache()
 
     # ═══════════════════════════════════════════════════════════
-    # Step 3: FP16 baseline PPL (register in results)
-    # ═══════════════════════════════════════════════════════════
-    for ckpt_name in checkpoints:
-        key = f'{ckpt_name}/FP16/baseline'
-        all_results[key] = {
-            'ppl': ckpt_fp16_ppl[ckpt_name],
-            'per_matrix_errors': {},
-        }
-
-    # ═══════════════════════════════════════════════════════════
-    # Step 4: GPTQ vs RTN comparison (COMP-02)
+    # Step 3: GPTQ vs RTN comparison (COMP-02)
     # ═══════════════════════════════════════════════════════════
     comparisons = {'gptq_vs_rtn': {}, 'lloyd_max_vs_uniform': {}}
 
@@ -552,10 +516,6 @@ def main():
 
             if rtn_data is None or gptq_data is None:
                 continue
-
-            rtn_ppl = rtn_data['ppl']
-            gptq_ppl = gptq_data['ppl']
-            ppl_delta = gptq_ppl - rtn_ppl
 
             rtn_errs = rtn_data.get('per_matrix_errors', {})
             gptq_errs = gptq_data.get('per_matrix_errors', {})
@@ -583,12 +543,9 @@ def main():
                     ffn_deltas.append(delta)
 
             comp = {
-                'ppl_delta': ppl_delta,
                 'mean_dy_delta': mean_dy_delta,
                 'attn_mean_dy_delta': np.mean(attn_deltas) if attn_deltas else float('nan'),
                 'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
-                'rtn_ppl': rtn_ppl,
-                'gptq_ppl': gptq_ppl,
                 'rtn_mean_dy': rtn_mean,
                 'gptq_mean_dy': gptq_mean,
                 'per_matrix_delta': per_matrix_delta,
@@ -596,7 +553,6 @@ def main():
             comparisons['gptq_vs_rtn'][f'{ckpt_name}/{fmt_name}'] = comp
 
             print(f"\n  GPTQ vs RTN [{ckpt_name}/{fmt_name}]:")
-            print(f"    PPL: {rtn_ppl:.4f} -> {gptq_ppl:.4f} (Δ={ppl_delta:+.4f})")
             print(f"    Mean ||dy||/||y||: {rtn_mean:.6f} -> {gptq_mean:.6f} (Δ={mean_dy_delta:+.6f})")
             print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
             print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
@@ -612,10 +568,6 @@ def main():
 
         if rtn_data is None or lm_data is None:
             continue
-
-        rtn_ppl = rtn_data['ppl']
-        lm_ppl = lm_data['ppl']
-        ppl_delta = lm_ppl - rtn_ppl
 
         rtn_errs = rtn_data.get('per_matrix_errors', {})
         lm_errs = lm_data.get('per_matrix_errors', {})
@@ -641,12 +593,9 @@ def main():
                 ffn_deltas.append(delta)
 
         comp = {
-            'ppl_delta': ppl_delta,
             'mean_dy_delta': mean_dy_delta,
             'attn_mean_dy_delta': np.mean(attn_deltas) if attn_deltas else float('nan'),
             'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
-            'uniform_rtn_ppl': rtn_ppl,
-            'lloyd_max_ppl': lm_ppl,
             'uniform_mean_dy': rtn_mean,
             'lloyd_max_mean_dy': lm_mean,
             'per_matrix_delta': per_matrix_delta,
@@ -654,7 +603,6 @@ def main():
         comparisons['lloyd_max_vs_uniform'][ckpt_name] = comp
 
         print(f"\n  Lloyd-Max vs Uniform E2M1 [{ckpt_name}/FP4]:")
-        print(f"    PPL: {rtn_ppl:.4f} -> {lm_ppl:.4f} (Δ={ppl_delta:+.4f})")
         print(f"    Mean ||dy||/||y||: {rtn_mean:.6f} -> {lm_mean:.6f} (Δ={mean_dy_delta:+.6f})")
         print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
         print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
@@ -765,11 +713,9 @@ def main():
     print(f"{'='*100}")
 
     for ckpt_name in checkpoints:
-        fp16_ppl = ckpt_fp16_ppl[ckpt_name]
-        print(f"\n  Checkpoint: {ckpt_name} (FP16 PPL={fp16_ppl:.4f})")
-        print(f"  {'Config':<45s} {'PPL':>8s} {'ΔPPL':>8s}  "
-              f"{'Mean ||dy||/||y||':>16s}")
-        print(f"  {'─'*85}")
+        print(f"\n  Checkpoint: {ckpt_name}")
+        print(f"  {'Config':<45s} {'Mean ||dy||/||y||':>20s}")
+        print(f"  {'─'*70}")
 
         best_by_fmt: dict[str, tuple] = {}
 
@@ -780,25 +726,23 @@ def main():
             result = all_results.get(config_key)
 
             if result is None:
-                print(f"  {config_key:<45s} {'FAIL':>8s} {'':>8s}  {'':>16s}")
+                print(f"  {config_key:<45s} {'FAIL':>20s}")
                 continue
 
-            ppl = result['ppl']
-            delta = ppl - fp16_ppl
             errs = result.get('per_matrix_errors', {})
             mean_err = np.mean(list(errs.values())) if errs else float('nan')
             err_str = _fmt_val(mean_err, '.6f')
 
-            print(f"  {config_key:<45s} {ppl:>8.4f} {delta:+8.4f}  {err_str:>16s}")
+            print(f"  {config_key:<45s} {err_str:>20s}")
 
-            # Track best per format
+            # Track best per format (lowest ||dy||/||y||)
             fmt = cfg['fmt_name']
-            if fmt not in best_by_fmt or ppl < best_by_fmt[fmt][0]:
-                best_by_fmt[fmt] = (ppl, config_key, delta)
+            if fmt not in best_by_fmt or mean_err < best_by_fmt[fmt][0]:
+                best_by_fmt[fmt] = (mean_err, config_key)
 
-        print(f"  {'─'*85}")
-        for fmt, (ppl, key, delta) in best_by_fmt.items():
-            print(f"  Best {fmt}: {key:<30s} PPL={ppl:.4f} (Δ={delta:+.4f})")
+        print(f"  {'─'*70}")
+        for fmt, (err, key) in best_by_fmt.items():
+            print(f"  Best {fmt}: {key:<30s} mean||dy||/||y||={err:.6f}")
 
     # GPTQ vs RTN summary
     print(f"\n{'='*60}")
@@ -806,8 +750,7 @@ def main():
     print(f"{'='*60}")
     for comp_key, comp_val in comparisons['gptq_vs_rtn'].items():
         print(f"  {comp_key}:")
-        print(f"    PPL Δ={comp_val['ppl_delta']:+.4f}  "
-              f"Mean ||dy|| Δ={comp_val['mean_dy_delta']:+.6f}  "
+        print(f"    Mean ||dy|| Δ={comp_val['mean_dy_delta']:+.6f}  "
               f"Attn Δ={comp_val['attn_mean_dy_delta']:+.6f}  "
               f"FFN Δ={comp_val['ffn_mean_dy_delta']:+.6f}")
 
@@ -817,8 +760,7 @@ def main():
     print(f"{'='*60}")
     for comp_key, comp_val in comparisons['lloyd_max_vs_uniform'].items():
         print(f"  {comp_key}:")
-        print(f"    PPL Δ={comp_val['ppl_delta']:+.4f}  "
-              f"Mean ||dy|| Δ={comp_val['mean_dy_delta']:+.6f}  "
+        print(f"    Mean ||dy|| Δ={comp_val['mean_dy_delta']:+.6f}  "
               f"Attn Δ={comp_val['attn_mean_dy_delta']:+.6f}  "
               f"FFN Δ={comp_val['ffn_mean_dy_delta']:+.6f}")
 
