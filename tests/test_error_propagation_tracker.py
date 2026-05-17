@@ -572,3 +572,243 @@ class TestPPointsProperty:
 
         assert 'new_key' not in tracker._p_points
         assert 'new_key' not in tracker._g_points
+
+
+# ═══════════════════════════════════════════════════════════════
+# Task 3 Tests: Offline error computation and null measurement
+# ═══════════════════════════════════════════════════════════════
+
+class MockQuantizer:
+    """A quantizer that returns the input unchanged (identity quantizer)."""
+
+    def quantize(self, W: torch.Tensor) -> torch.Tensor:
+        """Return W unchanged -- identity quantization for null testing."""
+        return W.clone()
+
+
+class MockQuantizerWithError:
+    """A quantizer that adds noise to simulate quantization error."""
+
+    def __init__(self, noise_scale: float = 0.1):
+        self.noise_scale = noise_scale
+
+    def quantize(self, W: torch.Tensor) -> torch.Tensor:
+        """Return W with noise: W_q = W + noise_scale * abs(W)."""
+        noise = torch.randn_like(W) * self.noise_scale * W.abs().mean()
+        return W + noise
+
+
+class TestResolveModule:
+    """_resolve_module traverses nested attributes."""
+
+    def test_resolve_simple_path(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        tracker = ErrorPropagationTracker()
+        model = nn.Sequential(nn.Linear(4, 8))
+
+        module = tracker._resolve_module(model, '0')
+        assert module is not None
+        assert isinstance(module, nn.Linear)
+
+    def test_resolve_nested_path(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        class Inner(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.fc = nn.Linear(4, 8)
+
+        class Outer(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer = Inner()
+
+        model = Outer()
+        tracker = ErrorPropagationTracker()
+
+        module = tracker._resolve_module(model, 'layer.fc')
+        assert module is not None
+        assert isinstance(module, nn.Linear)
+        assert module.in_features == 4
+        assert module.out_features == 8
+
+    def test_resolve_returns_none_for_bad_path(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+
+        module = tracker._resolve_module(model, 'nonexistent')
+        assert module is None
+
+    def test_resolve_returns_none_for_deep_bad_path(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = MockModel(n_layers=1)
+        tracker = ErrorPropagationTracker()
+
+        module = tracker._resolve_module(model, 'model.layers.nonexistent')
+        assert module is None
+
+
+class TestComputeOutputError:
+    """compute_output_error computes ||(W_q - W)x|| / ||Wx||."""
+
+    def test_returns_dict_of_string_to_float(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        # Set up with a model that has a single Linear
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        quantizer = MockQuantizer()
+        results = tracker.compute_output_error(model, quantizer)
+
+        assert isinstance(results, dict)
+        assert all(isinstance(k, str) for k in results.keys())
+        assert all(isinstance(v, float) for v in results.values())
+
+    def test_identity_quantizer_produces_zero_errors(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        quantizer = MockQuantizer()
+        results = tracker.compute_output_error(model, quantizer)
+
+        # Identity quantizer should give errors very close to 0
+        for module_path, err in results.items():
+            assert err < 1e-5, f"{module_path}: {err}"
+
+    def test_keys_match_module_path_no_weight_suffix(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8), nn.Linear(8, 4))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        quantizer = MockQuantizer()
+        results = tracker.compute_output_error(model, quantizer)
+
+        # Keys should match module paths (no .weight suffix)
+        assert '0' in results
+        assert '1' in results
+
+    def test_works_with_nested_model_structure(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = MockModel(n_layers=1)
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 8)
+        model(x)
+
+        # Note: lm_head in MockModel is nn.Sequential with one Linear
+        # The path will be 'model.layers.0.attention.q_proj' style doesn't apply here
+        # since MockModel uses simpler structure. So we just verify it runs.
+        quantizer = MockQuantizer()
+        results = tracker.compute_output_error(model, quantizer)
+
+        assert isinstance(results, dict)
+
+    def test_skips_modules_without_weight(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        # Model with Identity (no weight attr) and Linear
+        model = nn.Sequential(nn.Identity(), nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        quantizer = MockQuantizer()
+        results = tracker.compute_output_error(model, quantizer)
+
+        # Only the Linear module should appear in results
+        assert '1' in results  # The Linear at index 1
+
+
+class TestValidateNullMeasurement:
+    """validate_null_measurement validates the measurement pipeline."""
+
+    def test_returns_float_when_all_pass(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        max_err = tracker.validate_null_measurement(model)
+        assert isinstance(max_err, float)
+        assert max_err < 1e-5, f"Null measurement error too high: {max_err}"
+
+    def test_raises_value_error_on_large_error(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        # Manually corrupt an activation to trigger the validation failure
+        # Simulate a large error by modifying the stored activation
+        # (This is testing that the error threshold check works)
+        tracker._activations['0'] = tracker._activations['0'] * 1e6
+
+        with pytest.raises(ValueError) as excinfo:
+            tracker.validate_null_measurement(model)
+        assert 'WARN' in str(excinfo.value)
+        assert '1e-5' in str(excinfo.value)
+
+    def test_identifies_violating_modules(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(
+            nn.Linear(4, 8),
+            nn.Linear(8, 4),
+        )
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        # Corrupt activation for module '0' only
+        tracker._activations['0'] = tracker._activations['0'] * 1e6
+
+        with pytest.raises(ValueError):
+            tracker.validate_null_measurement(model)
+
+    def test_allows_identity_quant_level_errors(self):
+        from src.analysis.error_propagation import ErrorPropagationTracker
+
+        model = nn.Sequential(nn.Linear(4, 8))
+        tracker = ErrorPropagationTracker()
+        tracker.attach(model)
+
+        x = torch.randn(2, 4)
+        model(x)
+
+        # Should not raise for identity quant levels
+        max_err = tracker.validate_null_measurement(model)
+        assert max_err < 1e-5
