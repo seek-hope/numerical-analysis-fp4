@@ -56,7 +56,7 @@ Each of these operations transforms the error: RMSNorm attenuates by ~83%, the r
 
 **This report uses ||dy||/||y|| as the primary evaluation metric for all method comparisons. PPL is reported for contextual reference only and should not be used to rank quantization methods' fidelity to the original weights.**
 
-The mathematical derivations for Theorems 1-4 (the theoretical foundation of this project) are documented in `docs/ANALYSIS.md`, Part 2. These derivations are referenced throughout this report but are not reproduced here.
+The mathematical derivations for Theorems 1-4 (the theoretical foundation of this project) are documented in `docs/THEOREM.md`. These derivations are referenced throughout this report but are not reproduced here.
 
 
 ## Theorem 1 Validation Results
@@ -260,7 +260,7 @@ RMSNorm plays a critical role in controlling quantization error propagation thro
 
 **Phase 5 per-matrix evidence:** The mean tightness ratio (||dy||/||y|| / (kappa(W) * ||dW||/||W||)) across 84 matrices is 0.056. This is already 18x below the Theorem 1 bound at the matrix output — before any RMSNorm attenuation. The actual error reaching the lm_head is several orders of magnitude smaller.
 
-**Synthesis:** RMSNorm functions as both an error attenuator and a propagation blocker. Each RMSNorm blocks ~83% of incoming error; the residual connection further dilutes the remaining error. The theoretical basis is established in Theorem 2 (see ANALYSIS.md, Section 2.3). Combined with the cascade confound (§Methodology §6), this explains why two checkpoints can have per-matrix ||dy||/||y|| values that differ by 20%+ while a final-output metric shows negligible change — the metric is blind to per-matrix error structure.
+**Synthesis:** RMSNorm functions as both an error attenuator and a propagation blocker. Each RMSNorm blocks ~83% of incoming error; the residual connection further dilutes the remaining error. The theoretical basis is established in Theorem 2 (see THEOREM.md). Combined with the cascade confound (§Methodology §6), this explains why two checkpoints can have per-matrix ||dy||/||y|| values that differ by 20%+ while a final-output metric shows negligible change — the metric is blind to per-matrix error structure.
 
 
 ## Revised Theoretical Assessment
@@ -289,7 +289,7 @@ Theorem 1 is a single-layer bound. In a multi-layer transformer, each layer's ou
 
 **3. RMSNorm's non-multiplicative effect**
 
-Theorem 2 (ANALYSIS.md Section 2.3) shows that RMSNorm fundamentally changes the error propagation mechanism. Instead of the Lipschitz multiplicative cascade that would occur in unnormalized networks, RMSNorm projects error onto the orthogonal component of the signal, bounding relative error rather than amplifying it. The experimental data confirms this: RMSNorm attenuation ratios are consistently below 1.0 for the input norm, indicating systematic error reduction.
+Theorem 2 (THEOREM.md) shows that RMSNorm fundamentally changes the error propagation mechanism. Instead of the Lipschitz multiplicative cascade that would occur in unnormalized networks, RMSNorm projects error onto the orthogonal component of the signal, bounding relative error rather than amplifying it. The experimental data confirms this: RMSNorm attenuation ratios are consistently below 1.0 for the input norm, indicating systematic error reduction.
 
 ### Evidence Summary
 
@@ -308,7 +308,7 @@ The typical output error is an order of magnitude smaller than the Theorem 1 bou
 
 ### Mathematical Foundation
 
-The full mathematical derivations for Theorems 1-4 are documented in `docs/ANALYSIS.md`, Part 2. These include:
+The full mathematical derivations for Theorems 1-4 are documented in `docs/THEOREM.md`. These include:
 - **Theorem 1:** Single-layer quantization error bound
 - **Corollary 1.1 / Theorem 2:** RMSNorm error blocking
 - **Theorem 3:** Stochastic rounding cumulative error
@@ -319,7 +319,7 @@ The full mathematical derivations for Theorems 1-4 are documented in `docs/ANALY
 
 ## References
 
-1. **ANALYSIS.md:** `docs/ANALYSIS.md` — Mathematical derivations for Theorems 1-4
+1. **THEOREM.md:** `docs/THEOREM.md` — Full mathematical derivations for Theorems 1-4
 
 2. **PROPOSAL.md:** `docs/PROPOSAL.md` — Original project proposal
 
