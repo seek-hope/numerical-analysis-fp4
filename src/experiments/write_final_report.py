@@ -1013,25 +1013,42 @@ def write_gptq_analysis(comp_data: dict) -> str:
 
         ppl_delta = pair_val.get("ppl_delta", float("nan"))
         mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
+        total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
         rtn_ppl = pair_val.get("rtn_ppl", float("nan"))
         gptq_ppl = pair_val.get("gptq_ppl", float("nan"))
         rtn_mean_dy = pair_val.get("rtn_mean_dy", float("nan"))
         gptq_mean_dy = pair_val.get("gptq_mean_dy", float("nan"))
+        rtn_total_rel = pair_val.get("rtn_total_rel", float("nan"))
+        gptq_total_rel = pair_val.get("gptq_total_rel", float("nan"))
 
         # Interpret GPTQ effect on output error
         if not (isinstance(mean_dy_delta, float) and math.isnan(mean_dy_delta)):
             if mean_dy_delta < 0:
                 dy_effect = (
-                    f"GPTQ reduces output-space error by "
+                    f"GPTQ reduces per-matrix output-space error by "
                     f"{abs(mean_dy_delta) * 100:.2f}% relative to RTN"
                 )
             else:
                 dy_effect = (
-                    f"GPTQ increases output-space error by "
+                    f"GPTQ increases per-matrix output-space error by "
                     f"{mean_dy_delta * 100:.2f}% relative to RTN"
                 )
         else:
-            dy_effect = "Output-space error delta not available."
+            dy_effect = "Per-matrix error delta not available."
+
+        if not (isinstance(total_rel_delta, float) and math.isnan(total_rel_delta)):
+            if total_rel_delta < 0:
+                total_effect = (
+                    f"GPTQ reduces total activation reconstruction error by "
+                    f"{abs(total_rel_delta) * 100:.2f}%"
+                )
+            else:
+                total_effect = (
+                    f"GPTQ increases total activation reconstruction error by "
+                    f"{total_rel_delta * 100:.2f}%"
+                )
+        else:
+            total_effect = "Total error delta not available."
 
         section_title = f"### {ckpt.replace('_', ' ').title()} / {fmt}"
         lines.append(section_title)
@@ -1047,7 +1064,12 @@ def write_gptq_analysis(comp_data: dict) -> str:
             f"GPTQ = {_fmt_dy(gptq_mean_dy)} "
             f"(Delta = {_fmt_delta(mean_dy_delta)})"
         )
-        lines.append(f"- **Interpretation:** {dy_effect}.")
+        lines.append(
+            f"- **Total ||ΔWX||/||WX||:** RTN = {_fmt_dy(rtn_total_rel)} -> "
+            f"GPTQ = {_fmt_dy(gptq_total_rel)} "
+            f"(Delta = {_fmt_delta(total_rel_delta)})"
+        )
+        lines.append(f"- **Interpretation:** {dy_effect}. {total_effect}.")
         lines.append("")
 
     # Cross-format observation
@@ -1070,15 +1092,31 @@ def write_gptq_analysis(comp_data: dict) -> str:
 
         if fp8_deltas:
             mean_fp8 = sum(fp8_deltas) / len(fp8_deltas)
+            fp8_total_deltas = [
+                p.get("total_rel_delta", float("nan"))
+                for p in fp8_pairs
+                if not (isinstance(p.get("total_rel_delta"), float)
+                        and math.isnan(p.get("total_rel_delta", float("nan"))))
+            ]
+            mean_fp8_total = sum(fp8_total_deltas) / len(fp8_total_deltas) if fp8_total_deltas else float("nan")
             lines.append(
                 f"**Cross-format observation:** At FP8, GPTQ changes mean "
-                f"||dy||/||y|| by {_fmt_delta(mean_fp8)} on average."
+                f"||dy||/||y|| by {_fmt_delta(mean_fp8)} and total "
+                f"||ΔWX||/||WX|| by {_fmt_delta(mean_fp8_total)} on average."
             )
         if fp4_deltas:
             mean_fp4 = sum(fp4_deltas) / len(fp4_deltas)
+            fp4_total_deltas = [
+                p.get("total_rel_delta", float("nan"))
+                for p in fp4_pairs
+                if not (isinstance(p.get("total_rel_delta"), float)
+                        and math.isnan(p.get("total_rel_delta", float("nan"))))
+            ]
+            mean_fp4_total = sum(fp4_total_deltas) / len(fp4_total_deltas) if fp4_total_deltas else float("nan")
             lines.append(
                 f"At FP4, GPTQ changes mean ||dy||/||y|| by "
-                f"{_fmt_delta(mean_fp4)} on average."
+                f"{_fmt_delta(mean_fp4)} and total ||ΔWX||/||WX|| by "
+                f"{_fmt_delta(mean_fp4_total)} on average."
             )
         lines.append("")
 
@@ -1112,10 +1150,13 @@ def write_lloyd_max_analysis(comp_data: dict) -> str:
     for ckpt, pair_val in lm_pairs.items():
         ppl_delta = pair_val.get("ppl_delta", float("nan"))
         mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
+        total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
         uniform_ppl = pair_val.get("uniform_rtn_ppl", pair_val.get("rtn_ppl", float("nan")))
         lloyd_max_ppl = pair_val.get("lloyd_max_ppl", float("nan"))
         uniform_dy = pair_val.get("uniform_mean_dy", pair_val.get("rtn_mean_dy", float("nan")))
         lloyd_max_dy = pair_val.get("lloyd_max_mean_dy", float("nan"))
+        uniform_total = pair_val.get("uniform_total_rel", float("nan"))
+        lloyd_max_total = pair_val.get("lloyd_max_total_rel", float("nan"))
         attn_delta = pair_val.get("attn_mean_dy_delta", float("nan"))
         ffn_delta = pair_val.get("ffn_mean_dy_delta", float("nan"))
 
@@ -1147,6 +1188,11 @@ def write_lloyd_max_analysis(comp_data: dict) -> str:
             f"- **Mean ||dy||/||y||:** Uniform = {_fmt_dy(uniform_dy)} -> "
             f"Lloyd-Max = {_fmt_dy(lloyd_max_dy)} "
             f"(Delta = {_fmt_delta(mean_dy_delta)})"
+        )
+        lines.append(
+            f"- **Total ||ΔWX||/||WX||:** Uniform = {_fmt_dy(uniform_total)} -> "
+            f"Lloyd-Max = {_fmt_dy(lloyd_max_total)} "
+            f"(Delta = {_fmt_delta(total_rel_delta)})"
         )
         lines.append(
             f"- **Attention mean delta:** {_fmt_delta(attn_delta)}, "

@@ -268,7 +268,7 @@ def compute_per_matrix_errors(
     quantized_model: nn.Module,
     saved_activations: dict[str, torch.Tensor],
     device: torch.device,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
     """Compute per-matrix ||dy||/||y|| manually.
 
     Uses y_fp = x @ W_fp.T and y_q = x @ W_q.T for each matrix,
@@ -283,9 +283,14 @@ def compute_per_matrix_errors(
         device: compute device
 
     Returns:
-        dict[module_path -> relative_error]
+        (errors, numerators, denominators) where:
+        - errors: dict[module_path -> ||dy||/||y||]
+        - numerators: dict[module_path -> ||(W_q - W) @ x||_F]  (raw output error)
+        - denominators: dict[module_path -> ||W @ x||_F]  (raw signal magnitude)
     """
     errors = {}
+    numerators = {}
+    denominators = {}
     q_params = dict(quantized_model.named_parameters())
 
     for name, W_fp in original_weights.items():
@@ -296,7 +301,6 @@ def compute_per_matrix_errors(
 
         x = saved_activations[module_path].to(device)
 
-        # Get quantized weight
         if name in q_params:
             W_q = q_params[name].data
         else:
@@ -305,11 +309,13 @@ def compute_per_matrix_errors(
         y_fp = x @ W_fp.T
         y_q = x @ W_q.to(device).T
 
-        denom = y_fp.norm().clamp(min=1e-12)
-        err = ((y_q - y_fp).norm() / denom).item()
-        errors[module_path] = err
+        num = (y_q - y_fp).norm().item()
+        den = y_fp.norm().clamp(min=1e-12).item()
+        errors[module_path] = num / den
+        numerators[module_path] = num
+        denominators[module_path] = den
 
-    return errors
+    return errors, numerators, denominators
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -477,7 +483,7 @@ def main():
             apply_fn(model, cfg['fmt_str'], **kwargs)
 
             # Per-matrix error evaluation
-            errors = compute_per_matrix_errors(
+            errors, numerators, denominators = compute_per_matrix_errors(
                 ckpt_weights[cfg['ckpt_name']],
                 model,
                 ckpt_activations[cfg['ckpt_name']],
@@ -486,11 +492,24 @@ def main():
 
             elapsed = time.time() - t_start
             mean_err = np.mean(list(errors.values())) if errors else float('nan')
+
+            # Total activation reconstruction error:
+            # sqrt(Σ ||(W_q - W) @ x||²) / sqrt(Σ ||W @ x||²)
+            # This weights matrices by activation magnitude — closer to
+            # GPTQ's implicit Hessian-weighted objective than per-matrix mean.
+            total_num_sq = sum(v ** 2 for v in numerators.values())
+            total_den_sq = sum(v ** 2 for v in denominators.values())
+            total_rel_err = (total_num_sq / total_den_sq) ** 0.5 if total_den_sq > 0 else float('nan')
+
             print(f"  mean||dy||/||y||={mean_err:.6f}  "
+                  f"total||ΔWX||/||WX||={total_rel_err:.6f}  "
                   f"({elapsed:.1f}s)")
 
             all_results[config_key] = {
                 'per_matrix_errors': errors,
+                'total_rel_error': total_rel_err,
+                'total_num_sq': total_num_sq,
+                'total_den_sq': total_den_sq,
             }
 
         except Exception as e:
@@ -524,6 +543,14 @@ def main():
             gptq_mean = np.mean(list(gptq_errs.values())) if gptq_errs else float('nan')
             mean_dy_delta = gptq_mean - rtn_mean
 
+            rtn_total = rtn_data.get('total_rel_error', float('nan'))
+            gptq_total = gptq_data.get('total_rel_error', float('nan'))
+            total_delta = gptq_total - rtn_total if not (
+                isinstance(rtn_total, float) and math.isnan(rtn_total)
+            ) and not (
+                isinstance(gptq_total, float) and math.isnan(gptq_total)
+            ) else float('nan')
+
             # Per-matrix delta (+ means GPTQ worse)
             all_matrix_keys = sorted(set(list(rtn_errs.keys()) + list(gptq_errs.keys())))
             per_matrix_delta = {}
@@ -548,12 +575,16 @@ def main():
                 'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
                 'rtn_mean_dy': rtn_mean,
                 'gptq_mean_dy': gptq_mean,
+                'total_rel_delta': total_delta,
+                'rtn_total_rel': rtn_total,
+                'gptq_total_rel': gptq_total,
                 'per_matrix_delta': per_matrix_delta,
             }
             comparisons['gptq_vs_rtn'][f'{ckpt_name}/{fmt_name}'] = comp
 
             print(f"\n  GPTQ vs RTN [{ckpt_name}/{fmt_name}]:")
             print(f"    Mean ||dy||/||y||: {rtn_mean:.6f} -> {gptq_mean:.6f} (Δ={mean_dy_delta:+.6f})")
+            print(f"    Total ||ΔWX||/||WX||: {rtn_total:.6f} -> {gptq_total:.6f} (Δ={total_delta:+.6f})")
             print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
             print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
 
@@ -575,6 +606,14 @@ def main():
         rtn_mean = np.mean(list(rtn_errs.values())) if rtn_errs else float('nan')
         lm_mean = np.mean(list(lm_errs.values())) if lm_errs else float('nan')
         mean_dy_delta = lm_mean - rtn_mean
+
+        rtn_total = rtn_data.get('total_rel_error', float('nan'))
+        lm_total = lm_data.get('total_rel_error', float('nan'))
+        total_delta = lm_total - rtn_total if not (
+            isinstance(rtn_total, float) and math.isnan(rtn_total)
+        ) and not (
+            isinstance(lm_total, float) and math.isnan(lm_total)
+        ) else float('nan')
 
         all_matrix_keys = sorted(set(list(rtn_errs.keys()) + list(lm_errs.keys())))
         per_matrix_delta = {}
@@ -598,12 +637,16 @@ def main():
             'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
             'uniform_mean_dy': rtn_mean,
             'lloyd_max_mean_dy': lm_mean,
+            'total_rel_delta': total_delta,
+            'uniform_total_rel': rtn_total,
+            'lloyd_max_total_rel': lm_total,
             'per_matrix_delta': per_matrix_delta,
         }
         comparisons['lloyd_max_vs_uniform'][ckpt_name] = comp
 
         print(f"\n  Lloyd-Max vs Uniform E2M1 [{ckpt_name}/FP4]:")
         print(f"    Mean ||dy||/||y||: {rtn_mean:.6f} -> {lm_mean:.6f} (Δ={mean_dy_delta:+.6f})")
+        print(f"    Total ||ΔWX||/||WX||: {rtn_total:.6f} -> {lm_total:.6f} (Δ={total_delta:+.6f})")
         print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
         print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
 
@@ -708,14 +751,14 @@ def main():
     # ═══════════════════════════════════════════════════════════
     # Step 7: Summary comparison table (stdout)
     # ═══════════════════════════════════════════════════════════
-    print(f"\n{'='*100}")
+    print(f"\n{'='*120}")
     print("  Summary: All Configurations")
-    print(f"{'='*100}")
+    print(f"{'='*120}")
 
     for ckpt_name in checkpoints:
         print(f"\n  Checkpoint: {ckpt_name}")
-        print(f"  {'Config':<45s} {'Mean ||dy||/||y||':>20s}")
-        print(f"  {'─'*70}")
+        print(f"  {'Config':<45s} {'Mean ||dy||/||y||':>20s}  {'Total ||ΔWX||/||WX||':>22s}")
+        print(f"  {'─'*90}")
 
         best_by_fmt: dict[str, tuple] = {}
 
@@ -731,9 +774,11 @@ def main():
 
             errs = result.get('per_matrix_errors', {})
             mean_err = np.mean(list(errs.values())) if errs else float('nan')
-            err_str = _fmt_val(mean_err, '.6f')
+            total_err = result.get('total_rel_error', float('nan'))
+            mean_str = _fmt_val(mean_err, '.6f')
+            total_str = _fmt_val(total_err, '.6f')
 
-            print(f"  {config_key:<45s} {err_str:>20s}")
+            print(f"  {config_key:<45s} {mean_str:>20s}  {total_str:>22s}")
 
             # Track best per format (lowest ||dy||/||y||)
             fmt = cfg['fmt_name']

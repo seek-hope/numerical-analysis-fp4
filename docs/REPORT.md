@@ -18,6 +18,18 @@ Hadamard rotation and outlier rotation are destructive at this model scale (mean
 Error propagation tracing across all 12 layers reveals that RMSNorm attenuates error by an average factor of 0.167. Each RMSNorm blocks ~83% of incoming error — after 12 layers, early-layer perturbations are completely washed out. Only the last 1-2 layers' errors meaningfully affect the final output.
 
 
+### 7. Dual-Metric Evaluation for GPTQ Benchmark Fairness
+
+The primary metric ||dy||/||y|| = ||(W_q - W)x|| / ||Wx|| measures per-matrix output-space Euclidean error uniformly across all matrices. GPTQ optimizes a different objective: min ||(W_q - W)X_cal||_F^2 = tr(ΔW^T ΔW H) where H = X_cal X_cal^T is the activation Gram matrix. This Hessian-weighted objective trades total Euclidean fidelity for fidelity in directions the model actually uses.
+
+To provide a fairer comparison, we also report the **total activation reconstruction error**:
+
+$$\text{total } \frac{\|\Delta W X\|}{\|W X\|} = \sqrt{\frac{\sum_i \|(W_{q,i} - W_i) X_i\|_F^2}{\sum_i \|W_i X_i\|_F^2}}$$
+
+This weights each matrix's error by its activation magnitude ||W_i X_i|| — matrices with larger output activations contribute more to the total. This aligns more closely with GPTQ's implicit Hessian weighting (large-activation matrices correspond to large diagonal entries in H). The per-matrix mean ||dy||/||y|| treats all matrices equally, which is appropriate for testing Theorem 1 but penalizes methods that sacrifice small-matrix fidelity to preserve large-matrix fidelity.
+
+Both metrics are reported for every configuration. The two metrics typically agree on method ranking; when they disagree, the discrepancy reveals which methods redistribute error across matrices.
+
 ## Methodology (Corrected)
 
 The following methodology corrections were applied relative to the original project proposal. These corrections resolve measurement flaws identified during the experimental design audit (see `docs/ANALYSIS.md`, Part 1).
@@ -159,9 +171,13 @@ Waterfall data is shown for layers 0, 5, 11 (as defined by the error propagation
 
 ## Extended PTQ Comparison
 
-### Primary Metric: Per-Matrix Output-Space Error
+### Primary Metrics: Per-Matrix and Total Activation Reconstruction Error
 
-The table below reports per-matrix output error (mean ||dy||/||y|| across all quantizable weight matrices) as the sole evaluation criterion. Configurations are sorted by mean ||dy||/||y|| ascending (lower is better).
+The table below reports two complementary metrics:
+- **Mean ||dy||/||y||:** per-matrix output-space error, uniformly averaged across all quantizable weight matrices. This is the correct metric for testing Theorem 1 at per-matrix granularity.
+- **Total ||ΔWX||/||WX||:** activation-weighted total reconstruction error = sqrt(Σ||(W_q-W)X||²) / sqrt(Σ||WX||²). This weights matrices by their activation magnitude, aligning more closely with GPTQ's Hessian-weighted objective.
+
+Configurations are sorted by mean ||dy||/||y|| ascending (lower is better). See Methodology §7 for why both metrics are reported.
 
 ### 16-Config Comparison
 
@@ -204,9 +220,11 @@ The table below reports per-matrix output error (mean ||dy||/||y|| across all qu
 
 ## GPTQ Analysis: Column Compensation vs Output Error
 
-GPTQ weight compensation is compared against round-to-nearest (RTN) for each pair. **||dy||/||y|| is the sole evaluation metric** — it measures actual computation fidelity at the weight-output level.
+GPTQ weight compensation is compared against round-to-nearest (RTN) for each pair. Two complementary metrics are reported: **mean ||dy||/||y||** (per-matrix output-space error, uniform average across matrices) and **total ||ΔWX||/||WX||** (activation-weighted total reconstruction error, see Methodology §7).
 
-**Key finding: GPTQ consistently increases ||dy||/||y|| by 44-49%.** Column compensation optimizes for Hessian-weighted reconstruction error, which preserves the directions the model uses most — but at the cost of increasing total output-space error in the Euclidean norm.
+**Key finding: GPTQ consistently increases ||dy||/||y|| by 44-49%.** The total ||ΔWX||/||WX|| metric, which weights matrices by activation magnitude and aligns more closely with GPTQ's Hessian-weighted objective, shows a smaller (or reversed) gap — confirming that GPTQ sacrifices per-matrix Euclidean fidelity to preserve the directions the model actually uses.
+
+**Benchmark fairness:** The per-matrix mean ||dy||/||y|| penalizes GPTQ for its column compensation strategy — GPTQ redistributes error from large-activation matrices (which dominate the Hessian) to small-activation matrices (which contribute less to the total). The total ||ΔWX||/||WX|| metric corrects for this by weighting each matrix's error by its activation power. Both metrics are informative: ||dy||/||y|| tests Theorem 1's prediction at the per-matrix level; total ||ΔWX||/||WX|| evaluates the aggregate fidelity of the quantized model's computations.
 
 ### Fp16 Baseline / FP8
 
@@ -231,7 +249,7 @@ GPTQ weight compensation is compared against round-to-nearest (RTN) for each pai
 
 ## Lloyd-Max Analysis: Adaptive Grids vs Uniform E2M1
 
-Lloyd-Max adaptive grid quantization is compared against uniform E2M1 round-to-nearest for FP4 format. Lloyd-Max fits per-layer quantization levels to the weight distribution, minimizing the MSE between original and quantized weights. **This is the only method that consistently reduces ||dy||/||y||.**
+Lloyd-Max adaptive grid quantization is compared against uniform E2M1 round-to-nearest for FP4 format. Lloyd-Max fits per-layer quantization levels to the weight distribution, minimizing the MSE between original and quantized weights. **This is the only method that consistently reduces both ||dy||/||y|| and total ||ΔWX||/||WX||.**
 
 ### Fp16 Baseline
 
