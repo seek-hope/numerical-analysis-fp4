@@ -5,7 +5,7 @@
     "type": "attention",
     "kappa": 6.141352850330762,
     "dw_norm": 0.1469920229649629,
-    "dy_norm": 0.06608916074037552,
+    "dy_norm": 0.06608915765600708,
     "tightness_ratio": 0.07465049509138903,
     "norm_attenuation": NaN
   },
@@ -15,7 +15,7 @@
     "type": "attention",
     "kappa": 5237.143375722031,
     "dw_norm": 0.14817970260220611,
-    "dy_norm": 0.07479957491159439,
+    "dy_norm": 0.0747995731524848,
     "tightness_ratio": 9.76967477265573e-05,
     "norm_attenuation": NaN
   },
@@ -25,7 +25,7 @@
     "type": "attention",
     "kappa": 96.07124209303028,
     "dw_norm": 0.14836645417217992,
-    "dy_norm": 0.07843459397554398,
+    "dy_norm": 0.07843459096493725,
     "tightness_ratio": 0.005526795869585543,
     "norm_attenuation": NaN
   },
@@ -35,7 +35,7 @@
     "type": "attention",
     "kappa": 5.490870213522863,
     "dw_norm": 0.15115390303413476,
-    "dy_norm": 0.07530976086854935,
+    "dy_norm": 0.07530976405826419,
     "tightness_ratio": 0.09270370790386137,
     "norm_attenuation": NaN
   },
@@ -45,7 +45,7 @@
     "type": "ffn",
     "kappa": 5.076764843233996,
     "dw_norm": 0.16075396631121663,
-    "dy_norm": 0.07713364064693451,
+    "dy_norm": 0.07713364050301633,
     "tightness_ratio": 0.09540776753856936,
     "norm_attenuation": NaN
   },
@@ -55,7 +55,7 @@
     "type": "ffn",
     "kappa": 11.4853387439345,
     "dw_norm": 0.1558922665726729,
-    "dy_norm": 0.061341218650341034,
+    "dy_norm": 0.0613412197710367,
     "tightness_ratio": 0.03484692778905417,
     "norm_attenuation": NaN
   },
@@ -65,7 +65,7 @@
     "type": "ffn",
     "kappa": 6.234073062834228,
     "dw_norm": 0.15608122037609365,
-    "dy_norm": 0.07912810891866684,
+    "dy_norm": 0.07912811088353301,
     "tightness_ratio": 0.0810811297183403,
     "norm_attenuation": NaN
   },
@@ -75,7 +75,7 @@
     "type": "attention",
     "kappa": 8.638131303310988,
     "dw_norm": 0.14857839531193232,
-    "dy_norm": 0.0480862557888031,
+    "dy_norm": 0.04808625753608229,
     "tightness_ratio": 0.038316666175131825,
     "norm_attenuation": NaN
   },
@@ -85,7 +85,7 @@
     "type": "attention",
     "kappa": 17592.028460263875,
     "dw_norm": 0.14862681401320918,
-    "dy_norm": 0.07240350544452667,
+    "dy_norm": 0.07240350441074574,
     "tightness_ratio": 2.640368037553055e-05,
     "norm_attenuation": NaN
   },
@@ -95,7 +95,7 @@
     "type": "attention",
     "kappa": 162.90188528748084,
     "dw_norm": 0.14855983554426389,
-    "dy_norm": 0.05203705281019211,
+    "dy_norm": 0.052037053186273455,
     "tightness_ratio": 0.002194512535880493,
     "norm_attenuation": NaN
   },
@@ -105,7 +105,7 @@
     "type": "attention",
     "kappa": 4.035280749027619,
     "dw_norm": 0.15010630422806776,
-    "dy_norm": 0.08379708230495453,
+    "dy_norm": 0.08379708317015805,
     "tightness_ratio": 0.1375974507854149,
     "norm_attenuation": NaN
   },
@@ -115,7 +115,7 @@
     "type": "ffn",
     "kappa": 6.060470418298779,
     "dw_norm": 0.1636995344941794,
-    "dy_norm": 0.09950199723243713,
+    "dy_norm": 0.09950200091168418,
     "tightness_ratio": 0.09906067494941333,
     "norm_attenuation": NaN
   },
@@ -125,7 +125,7 @@
     "type": "ffn",
     "kappa": 14.351229272964705,
     "dw_norm": 0.16005685225298755,
-    "dy_norm": 0.06460323929786682,
+    "dy_norm": 0.06460324234924886,
     "tightness_ratio": 0.028726408652642456,
     "norm_attenuation": NaN
   },
@@ -135,7 +135,7 @@
     "type": "ffn",
     "kappa": 5.560298214096211,
     "dw_norm": 0.15951007071914028,
-    "dy_norm": 0.10653336346149445,
+    "dy_norm": 0.10653336359413478,
     "tightness_ratio": 0.120309007293827,
     "norm_attenuation": NaN
   },
@@ -145,7 +145,7 @@
     "type": "attention",
     "kappa": 21.030854403329116,
     "dw_norm": 0.14922752034078593,
-    "dy_norm": 0.04628143087029457,
+    "dy_norm": 0.04628142994756726,
     "tightness_ratio": 0.014967584660683228,
     "norm_attenuation": NaN
   },
@@ -155,7 +155,7 @@
     "type": "attention",
     "kappa": 11.872863116243277,
     "dw_norm": 0.15462986369034898,
-    "dy_norm": 0.06186164170503616,
+    "dy_norm": 0.0618616411539767,
     "tightness_ratio": 0.033736271819193094,
     "norm_attenuation": NaN
   },
@@ -165,7 +165,7 @@
     "type": "attention",
     "kappa": 29.88664313900782,
     "dw_norm": 0.14818384938346205,
-    "dy_norm": 0.051632095128297806,
+    "dy_norm": 0.05163209475101442,
     "tightness_ratio": 0.011702858676353253,
     "norm_attenuation": NaN
   },
@@ -175,7 +175,7 @@
     "type": "attention",
     "kappa": 8.845153247851226,
     "dw_norm": 0.15794933515080278,
-    "dy_norm": 0.08145500719547272,
+    "dy_norm": 0.0814550036242959,
     "tightness_ratio": 0.05967262772072231,
     "norm_attenuation": NaN
   },
@@ -185,7 +185,7 @@
     "type": "ffn",
     "kappa": 5.594049021224864,
     "dw_norm": 0.16296491755047945,
-    "dy_norm": 0.11800176650285721,
+    "dy_norm": 0.11800176699002546,
     "tightness_ratio": 0.12888177452104294,
     "norm_attenuation": NaN
   },
@@ -195,7 +195,7 @@
     "type": "ffn",
     "kappa": 14.353495527040389,
     "dw_norm": 0.15700599766916126,
-    "dy_norm": 0.06908195465803146,
+    "dy_norm": 0.06908195214252481,
     "tightness_ratio": 0.030848233391215132,
     "norm_attenuation": NaN
   },
@@ -205,7 +205,7 @@
     "type": "ffn",
     "kappa": 7.431873572362252,
     "dw_norm": 0.15821617548168543,
-    "dy_norm": 0.09204971045255661,
+    "dy_norm": 0.09204970917020266,
     "tightness_ratio": 0.07933957905325197,
     "norm_attenuation": NaN
   },
@@ -215,7 +215,7 @@
     "type": "attention",
     "kappa": 8.103729425106003,
     "dw_norm": 0.15113507492957695,
-    "dy_norm": 0.05952462553977966,
+    "dy_norm": 0.059524624461640814,
     "tightness_ratio": 0.048517472182862176,
     "norm_attenuation": NaN
   },
@@ -225,7 +225,7 @@
     "type": "attention",
     "kappa": 6980.556714121301,
     "dw_norm": 0.15397563549951024,
-    "dy_norm": 0.06387894600629807,
+    "dy_norm": 0.06387894380246283,
     "tightness_ratio": 5.649491097835903e-05,
     "norm_attenuation": NaN
   },
@@ -235,7 +235,7 @@
     "type": "attention",
     "kappa": 173.9339643383337,
     "dw_norm": 0.14803978002924942,
-    "dy_norm": 0.06060193479061127,
+    "dy_norm": 0.06060193487596889,
     "tightness_ratio": 0.002371184073678991,
     "norm_attenuation": NaN
   },
@@ -245,7 +245,7 @@
     "type": "attention",
     "kappa": 5.820995943340375,
     "dw_norm": 0.16011179511236293,
-    "dy_norm": 0.08157762140035629,
+    "dy_norm": 0.08157762197241643,
     "tightness_ratio": 0.085827255289129,
     "norm_attenuation": NaN
   },
@@ -255,7 +255,7 @@
     "type": "ffn",
     "kappa": 5.792886650107807,
     "dw_norm": 0.16260642603837144,
-    "dy_norm": 0.11405107378959656,
+    "dy_norm": 0.11405107681292814,
     "tightness_ratio": 0.12165339962395078,
     "norm_attenuation": NaN
   },
@@ -265,7 +265,7 @@
     "type": "ffn",
     "kappa": 13.281989344611548,
     "dw_norm": 0.15861422066814843,
-    "dy_norm": 0.07795222848653793,
+    "dy_norm": 0.07795222893139378,
     "tightness_ratio": 0.0378731670595609,
     "norm_attenuation": NaN
   },
@@ -275,7 +275,7 @@
     "type": "ffn",
     "kappa": 6.857827791716528,
     "dw_norm": 0.1597307447621695,
-    "dy_norm": 0.0965198501944542,
+    "dy_norm": 0.09651984696333933,
     "tightness_ratio": 0.08968029451644555,
     "norm_attenuation": NaN
   },
@@ -285,7 +285,7 @@
     "type": "attention",
     "kappa": 6.955650430468387,
     "dw_norm": 0.14971569461768924,
-    "dy_norm": 0.06983617693185806,
+    "dy_norm": 0.06983617320741958,
     "tightness_ratio": 0.06864174253544186,
     "norm_attenuation": NaN
   },
@@ -295,7 +295,7 @@
     "type": "attention",
     "kappa": 1935.7814717038943,
     "dw_norm": 0.14845889046517752,
-    "dy_norm": 0.06957736611366272,
+    "dy_norm": 0.06957736278642807,
     "tightness_ratio": 0.0002363492807868904,
     "norm_attenuation": NaN
   },
@@ -305,7 +305,7 @@
     "type": "attention",
     "kappa": 169.59675972898887,
     "dw_norm": 0.14729160290011212,
-    "dy_norm": 0.06253233551979065,
+    "dy_norm": 0.06253233921342924,
     "tightness_ratio": 0.002601186680204561,
     "norm_attenuation": NaN
   },
@@ -315,7 +315,7 @@
     "type": "attention",
     "kappa": 5.165154517000048,
     "dw_norm": 0.16087360412928228,
-    "dy_norm": 0.10875815898180008,
+    "dy_norm": 0.10875815839465233,
     "tightness_ratio": 0.13053452793565293,
     "norm_attenuation": NaN
   },
@@ -325,7 +325,7 @@
     "type": "ffn",
     "kappa": 5.797478477087735,
     "dw_norm": 0.1626419478298148,
-    "dy_norm": 0.11199339479207993,
+    "dy_norm": 0.11199339376460311,
     "tightness_ratio": 0.12329688680671051,
     "norm_attenuation": NaN
   },
@@ -335,7 +335,7 @@
     "type": "ffn",
     "kappa": 13.442689656157944,
     "dw_norm": 0.15896326927530913,
-    "dy_norm": 0.08061697334051132,
+    "dy_norm": 0.08061697065714096,
     "tightness_ratio": 0.038707334767471874,
     "norm_attenuation": NaN
   },
@@ -345,7 +345,7 @@
     "type": "ffn",
     "kappa": 6.439053376593879,
     "dw_norm": 0.15976902095400444,
-    "dy_norm": 0.10123142600059509,
+    "dy_norm": 0.10123142460602319,
     "tightness_ratio": 0.09956237188099852,
     "norm_attenuation": NaN
   },
@@ -355,7 +355,7 @@
     "type": "attention",
     "kappa": 17.691974620588674,
     "dw_norm": 0.1487122729513262,
-    "dy_norm": 0.0663551315665245,
+    "dy_norm": 0.06635513468364429,
     "tightness_ratio": 0.026362942525224354,
     "norm_attenuation": NaN
   },
@@ -365,7 +365,7 @@
     "type": "attention",
     "kappa": 13.932849313893863,
     "dw_norm": 0.15589090404693684,
-    "dy_norm": 0.06528498232364655,
+    "dy_norm": 0.0652849812969481,
     "tightness_ratio": 0.02945360745616895,
     "norm_attenuation": NaN
   },
@@ -375,7 +375,7 @@
     "type": "attention",
     "kappa": 29.83549631500354,
     "dw_norm": 0.1482074217050328,
-    "dy_norm": 0.06342589855194092,
+    "dy_norm": 0.06342589555491106,
     "tightness_ratio": 0.014958969619266722,
     "norm_attenuation": NaN
   },
@@ -385,7 +385,7 @@
     "type": "attention",
     "kappa": 11.23791860122267,
     "dw_norm": 0.17204008061827228,
-    "dy_norm": 0.1074259802699089,
+    "dy_norm": 0.10742597926506355,
     "tightness_ratio": 0.05623131086397115,
     "norm_attenuation": NaN
   },
@@ -395,7 +395,7 @@
     "type": "ffn",
     "kappa": 6.0822977596196734,
     "dw_norm": 0.1631875842920573,
-    "dy_norm": 0.1166427880525589,
+    "dy_norm": 0.11664278910033304,
     "tightness_ratio": 0.11976727254066676,
     "norm_attenuation": NaN
   },
@@ -405,7 +405,7 @@
     "type": "ffn",
     "kappa": 13.128524854615813,
     "dw_norm": 0.15799498958052224,
-    "dy_norm": 0.08312329649925232,
+    "dy_norm": 0.08312329671384648,
     "tightness_ratio": 0.04219951788274511,
     "norm_attenuation": NaN
   },
@@ -415,7 +415,7 @@
     "type": "ffn",
     "kappa": 6.845575768883348,
     "dw_norm": 0.15911479785939225,
-    "dy_norm": 0.09795787185430527,
+    "dy_norm": 0.09795787130827022,
     "tightness_ratio": 0.09138375066074758,
     "norm_attenuation": NaN
   },
@@ -425,7 +425,7 @@
     "type": "attention",
     "kappa": 7.504729726141781,
     "dw_norm": 0.15151278629636117,
-    "dy_norm": 0.07332253456115723,
+    "dy_norm": 0.07332253809622191,
     "tightness_ratio": 0.06794285983769344,
     "norm_attenuation": NaN
   },
@@ -435,7 +435,7 @@
     "type": "attention",
     "kappa": 4120.777084323169,
     "dw_norm": 0.15047436474832593,
-    "dy_norm": 0.05547518655657768,
+    "dy_norm": 0.05547518759321402,
     "tightness_ratio": 8.78306805030153e-05,
     "norm_attenuation": NaN
   },
@@ -445,7 +445,7 @@
     "type": "attention",
     "kappa": 201.13322396754768,
     "dw_norm": 0.14815827390914107,
-    "dy_norm": 0.06364922970533371,
+    "dy_norm": 0.06364923060787823,
     "tightness_ratio": 0.0022520714869059843,
     "norm_attenuation": NaN
   },
@@ -455,7 +455,7 @@
     "type": "attention",
     "kappa": 6.946305205453779,
     "dw_norm": 0.1697643832966248,
-    "dy_norm": 0.10285010933876038,
+    "dy_norm": 0.10285010755646067,
     "tightness_ratio": 0.0868953504956349,
     "norm_attenuation": NaN
   },
@@ -465,7 +465,7 @@
     "type": "ffn",
     "kappa": 5.660103219494089,
     "dw_norm": 0.16286048964998057,
-    "dy_norm": 0.11577055603265762,
+    "dy_norm": 0.11577055410973394,
     "tightness_ratio": 0.1253697629679578,
     "norm_attenuation": NaN
   },
@@ -475,7 +475,7 @@
     "type": "ffn",
     "kappa": 12.938415542491416,
     "dw_norm": 0.15818864818944461,
-    "dy_norm": 0.08446819335222244,
+    "dy_norm": 0.08446819582213297,
     "tightness_ratio": 0.04343725009387894,
     "norm_attenuation": NaN
   },
@@ -485,7 +485,7 @@
     "type": "ffn",
     "kappa": 6.8449939315505315,
     "dw_norm": 0.15905473819024984,
-    "dy_norm": 0.09827917069196701,
+    "dy_norm": 0.09827917245931893,
     "tightness_ratio": 0.09019402655508256,
     "norm_attenuation": NaN
   },
@@ -495,7 +495,7 @@
     "type": "attention",
     "kappa": 7.199948445241811,
     "dw_norm": 0.152402010658328,
-    "dy_norm": 0.07255873084068298,
+    "dy_norm": 0.07255872755188394,
     "tightness_ratio": 0.0720043897717857,
     "norm_attenuation": NaN
   },
@@ -505,7 +505,7 @@
     "type": "attention",
     "kappa": 2107.0101491850446,
     "dw_norm": 0.14811363985967915,
-    "dy_norm": 0.0681169182062149,
+    "dy_norm": 0.06811691660848239,
     "tightness_ratio": 0.0002190529440204533,
     "norm_attenuation": NaN
   },
@@ -515,7 +515,7 @@
     "type": "attention",
     "kappa": 178.72741224936584,
     "dw_norm": 0.14746048843980972,
-    "dy_norm": 0.06478764861822128,
+    "dy_norm": 0.06478764917242573,
     "tightness_ratio": 0.0026764003148704103,
     "norm_attenuation": NaN
   },
@@ -525,7 +525,7 @@
     "type": "attention",
     "kappa": 5.661088345128216,
     "dw_norm": 0.1781728489582989,
-    "dy_norm": 0.11997393518686295,
+    "dy_norm": 0.11997393627357573,
     "tightness_ratio": 0.12164381646711246,
     "norm_attenuation": NaN
   },
@@ -535,7 +535,7 @@
     "type": "ffn",
     "kappa": 5.789706857594274,
     "dw_norm": 0.16330826276506327,
-    "dy_norm": 0.11356276273727417,
+    "dy_norm": 0.11356276603428804,
     "tightness_ratio": 0.12220807687770746,
     "norm_attenuation": NaN
   },
@@ -545,7 +545,7 @@
     "type": "ffn",
     "kappa": 13.274721712295364,
     "dw_norm": 0.15764871381055642,
-    "dy_norm": 0.08189583569765091,
+    "dy_norm": 0.08189583711551775,
     "tightness_ratio": 0.041727439193456804,
     "norm_attenuation": NaN
   },
@@ -555,7 +555,7 @@
     "type": "ffn",
     "kappa": 6.818621659152639,
     "dw_norm": 0.15901614070471215,
-    "dy_norm": 0.09805186837911606,
+    "dy_norm": 0.09805186832350002,
     "tightness_ratio": 0.09138745503898803,
     "norm_attenuation": NaN
   },
@@ -565,7 +565,7 @@
     "type": "attention",
     "kappa": 16.587159708332308,
     "dw_norm": 0.15017513172721675,
-    "dy_norm": 0.06954416632652283,
+    "dy_norm": 0.06954416493555789,
     "tightness_ratio": 0.03046371309980602,
     "norm_attenuation": NaN
   },
@@ -575,7 +575,7 @@
     "type": "attention",
     "kappa": 13.168360351933968,
     "dw_norm": 0.15467975789377733,
-    "dy_norm": 0.06163494288921356,
+    "dy_norm": 0.061634942698991724,
     "tightness_ratio": 0.030173096492528577,
     "norm_attenuation": NaN
   },
@@ -585,7 +585,7 @@
     "type": "attention",
     "kappa": 30.34589783050194,
     "dw_norm": 0.14862212997394603,
-    "dy_norm": 0.06483173370361328,
+    "dy_norm": 0.0648317301979922,
     "tightness_ratio": 0.015533563966053422,
     "norm_attenuation": NaN
   },
@@ -595,7 +595,7 @@
     "type": "attention",
     "kappa": 12.1011324203167,
     "dw_norm": 0.1747881404437688,
-    "dy_norm": 0.11151793599128723,
+    "dy_norm": 0.11151793686787947,
     "tightness_ratio": 0.05463041977155647,
     "norm_attenuation": NaN
   },
@@ -605,7 +605,7 @@
     "type": "ffn",
     "kappa": 5.900840264367762,
     "dw_norm": 0.16444586522438995,
-    "dy_norm": 0.11142128705978394,
+    "dy_norm": 0.11142128998832729,
     "tightness_ratio": 0.11619471311471907,
     "norm_attenuation": NaN
   },
@@ -615,7 +615,7 @@
     "type": "ffn",
     "kappa": 13.776045432756758,
     "dw_norm": 0.15636795816184512,
-    "dy_norm": 0.07820885628461838,
+    "dy_norm": 0.07820885665590642,
     "tightness_ratio": 0.03865996245069015,
     "norm_attenuation": NaN
   },
@@ -625,7 +625,7 @@
     "type": "ffn",
     "kappa": 7.324807366265862,
     "dw_norm": 0.1572368650120735,
-    "dy_norm": 0.0913628339767456,
+    "dy_norm": 0.0913628322744612,
     "tightness_ratio": 0.08066990532096606,
     "norm_attenuation": NaN
   },
@@ -635,7 +635,7 @@
     "type": "attention",
     "kappa": 8.184538271420186,
     "dw_norm": 0.1512069685542728,
-    "dy_norm": 0.07325352728366852,
+    "dy_norm": 0.07325352854587201,
     "tightness_ratio": 0.060737941142741614,
     "norm_attenuation": NaN
   },
@@ -645,7 +645,7 @@
     "type": "attention",
     "kappa": 7370.173953426461,
     "dw_norm": 0.14891495835657392,
-    "dy_norm": 0.06475236266851425,
+    "dy_norm": 0.0647523632940871,
     "tightness_ratio": 6.003301397999236e-05,
     "norm_attenuation": NaN
   },
@@ -655,7 +655,7 @@
     "type": "attention",
     "kappa": 207.30303012535077,
     "dw_norm": 0.14867015886499385,
-    "dy_norm": 0.06379210203886032,
+    "dy_norm": 0.06379210113582343,
     "tightness_ratio": 0.002258454957731512,
     "norm_attenuation": NaN
   },
@@ -665,7 +665,7 @@
     "type": "attention",
     "kappa": 6.143860393643927,
     "dw_norm": 0.16039689093940673,
-    "dy_norm": 0.11010969430208206,
+    "dy_norm": 0.11010969134012995,
     "tightness_ratio": 0.11365989565356018,
     "norm_attenuation": NaN
   },
@@ -675,7 +675,7 @@
     "type": "ffn",
     "kappa": 6.395209982996464,
     "dw_norm": 0.16328825568831126,
-    "dy_norm": 0.09978190809488297,
+    "dy_norm": 0.09978190867726151,
     "tightness_ratio": 0.09979780895605911,
     "norm_attenuation": NaN
   },
@@ -685,7 +685,7 @@
     "type": "ffn",
     "kappa": 14.200720996663149,
     "dw_norm": 0.1567465979982886,
-    "dy_norm": 0.07798069715499878,
+    "dy_norm": 0.07798069998787091,
     "tightness_ratio": 0.03740389339109475,
     "norm_attenuation": NaN
   },
@@ -695,7 +695,7 @@
     "type": "ffn",
     "kappa": 6.884241811776351,
     "dw_norm": 0.1568917426113615,
-    "dy_norm": 0.0904623344540596,
+    "dy_norm": 0.09046233794866455,
     "tightness_ratio": 0.08564635143311117,
     "norm_attenuation": NaN
   },
@@ -705,7 +705,7 @@
     "type": "attention",
     "kappa": 7.428108444634747,
     "dw_norm": 0.15028419622617517,
-    "dy_norm": 0.07245060056447983,
+    "dy_norm": 0.07245059725189679,
     "tightness_ratio": 0.06800944702312743,
     "norm_attenuation": NaN
   },
@@ -715,7 +715,7 @@
     "type": "attention",
     "kappa": 9091.240788105653,
     "dw_norm": 0.14848781302163191,
-    "dy_norm": 0.06690322607755661,
+    "dy_norm": 0.06690322340386078,
     "tightness_ratio": 4.8170444929663324e-05,
     "norm_attenuation": NaN
   },
@@ -725,7 +725,7 @@
     "type": "attention",
     "kappa": 177.44725132834034,
     "dw_norm": 0.1485942501875855,
-    "dy_norm": 0.06258013844490051,
+    "dy_norm": 0.06258013552560396,
     "tightness_ratio": 0.0025380394340950457,
     "norm_attenuation": NaN
   },
@@ -735,7 +735,7 @@
     "type": "attention",
     "kappa": 5.678791720681092,
     "dw_norm": 0.17818145312287403,
-    "dy_norm": 0.12347348779439926,
+    "dy_norm": 0.12347348531483082,
     "tightness_ratio": 0.12408980984796777,
     "norm_attenuation": NaN
   },
@@ -745,7 +745,7 @@
     "type": "ffn",
     "kappa": 7.1748004106914625,
     "dw_norm": 0.16243771113757088,
-    "dy_norm": 0.09596959501504898,
+    "dy_norm": 0.0959695976612757,
     "tightness_ratio": 0.08675272503313779,
     "norm_attenuation": NaN
   },
@@ -755,7 +755,7 @@
     "type": "ffn",
     "kappa": 14.63545682185101,
     "dw_norm": 0.15708715590894548,
-    "dy_norm": 0.07542326301336288,
+    "dy_norm": 0.0754232614552607,
     "tightness_ratio": 0.03467875981458536,
     "norm_attenuation": NaN
   },
@@ -765,7 +765,7 @@
     "type": "ffn",
     "kappa": 7.577148683532185,
     "dw_norm": 0.15690170586810503,
-    "dy_norm": 0.08788842707872391,
+    "dy_norm": 0.0878884264427983,
     "tightness_ratio": 0.07633757531504932,
     "norm_attenuation": NaN
   },
@@ -775,7 +775,7 @@
     "type": "attention",
     "kappa": 17.453575727660926,
     "dw_norm": 0.14964661357995393,
-    "dy_norm": 0.06622079759836197,
+    "dy_norm": 0.06622080076377819,
     "tightness_ratio": 0.02758673656025208,
     "norm_attenuation": NaN
   },
@@ -785,7 +785,7 @@
     "type": "attention",
     "kappa": 13.94527925802977,
     "dw_norm": 0.15438457286187213,
-    "dy_norm": 0.055327411741018295,
+    "dy_norm": 0.05532741279941873,
     "tightness_ratio": 0.02614769092435602,
     "norm_attenuation": NaN
   },
@@ -795,7 +795,7 @@
     "type": "attention",
     "kappa": 25.993136894991235,
     "dw_norm": 0.14884814857929768,
-    "dy_norm": 0.06683409959077835,
+    "dy_norm": 0.06683409838813115,
     "tightness_ratio": 0.018353105029026935,
     "norm_attenuation": NaN
   },
@@ -805,7 +805,7 @@
     "type": "attention",
     "kappa": 10.95087565048056,
     "dw_norm": 0.16112113059573488,
-    "dy_norm": 0.10608406364917755,
+    "dy_norm": 0.10608406078699875,
     "tightness_ratio": 0.06210806662047302,
     "norm_attenuation": NaN
   },
@@ -815,7 +815,7 @@
     "type": "ffn",
     "kappa": 9.096270035808413,
     "dw_norm": 0.16400598314917172,
-    "dy_norm": 0.07794887572526932,
+    "dy_norm": 0.07794887690176774,
     "tightness_ratio": 0.05376911130651652,
     "norm_attenuation": NaN
   },
@@ -825,7 +825,7 @@
     "type": "ffn",
     "kappa": 15.954652361564941,
     "dw_norm": 0.15509898811522002,
-    "dy_norm": 0.06682489067316055,
+    "dy_norm": 0.06682489024225644,
     "tightness_ratio": 0.028434600667203887,
     "norm_attenuation": NaN
   },
@@ -835,7 +835,7 @@
     "type": "ffn",
     "kappa": 9.951641232546532,
     "dw_norm": 0.15512320879190242,
-    "dy_norm": 0.07363478094339371,
+    "dy_norm": 0.07363478289284664,
     "tightness_ratio": 0.05048260990365304,
     "norm_attenuation": NaN
   }

@@ -2,33 +2,15 @@
 
 This report presents a numerical analysis of FP8/FP4 post-training quantization (PTQ) applied to a ~164M parameter Gemma-style causal Transformer. We systematically evaluate 72 weight matrices across 12 layers, measuring per-matrix condition numbers kappa(W) via exact SVD, per-matrix output errors ||dy||/||y|| at each Linear layer output, and error propagation through RMSNorm and attention blocks. The study tests whether classical matrix perturbation theory (Theorem 1: ||dy||/||y|| <= kappa(W) * ||dW||/||W||) holds empirically at per-matrix granularity.
 
-## Primary Metric: Per-Matrix Output-Space Relative Error
+Theorem 1 validation yields a verdict of **NO**: Pearson r = -0.2258, p = 3.8885e-02 (Bonferroni threshold = 0.00069), bootstrap 95% CI = [-0.3407, -0.1390]. 
+Correlation analysis across 3 random seeds and per-layer-type subgroups (attention, FFN, global) provides the quantitative basis for this assessment.
 
-**||dy||/||y|| is the correct metric for testing numerical analysis predictions.** Theorem 1 bounds perturbation at the output of a linear map y = Wx. Perplexity (PPL) measures cross-entropy loss at the final token distribution — after RMSNorm, attention, FFN, residuals, and lm_head have all transformed the error signal. Each RMSNorm blocks ~83% of incoming error; after 12 layers, the error from layer 0's weight quantization has been attenuated to near-zero before reaching the lm_head. PPL is therefore fundamentally unable to measure per-matrix quantization fidelity. All method comparisons in this report use ||dy||/||y|| exclusively.
+The extended PTQ comparison evaluates up to 6 quantization methods across 2 checkpoints (FP16 baseline and condition-number-regularized) and 2 formats (FP8 E4M3, FP4 E2M1), collecting both perplexity (PPL) and per-matrix output errors for every configuration.
+For FP8 E4M3, the best method on the FP16 baseline checkpoint is **rtn** (mean ||dy||/||y|| = 0.013672).
+GPTQ column compensation and Lloyd-Max adaptive grids are analyzed separately for their effect on output-space error.
 
-## Key Results
+Error propagation tracing across all 12 layers reveals that RMSNorm attenuates input error by an average factor of 0.1667 (ratio of post-norm to pre-norm error magnitude). This attenuation, combined with the parallel/orthogonal decomposition of error at each norm output, explains how per-matrix quantization errors interact with the Transformer's normalization architecture.
 
-Theorem 1 validation yields a verdict of **NO**: Pearson r = -0.2258, p = 3.8885e-02 (Bonferroni threshold = 0.00069), bootstrap 95% CI = [-0.3407, -0.1390]. Kappa(W) has a *negative* correlation with output-space error — higher condition numbers do not imply larger quantization errors. This is because ||dW||/||W|| ≈ 0.15 for ALL matrices under FP4 E2M1 (the unit roundoff u = 0.25 dominates), so kappa variation (1~126000) is irrelevant to the actual error magnitude.
-
-The extended PTQ comparison evaluates up to 6 quantization methods across 2 checkpoints and 2 formats, measuring ||dy||/||y|| on every configuration as the sole evaluation metric.
-By output-space error, the best FP8 method is **round-to-nearest** (mean ||dy||/||y|| = 0.0137). GPTQ *increases* ||dy||/||y|| by 49% (to 0.0204).
-The best FP4 method is **Lloyd-Max adaptive grids** (mean ||dy||/||y|| = 0.0664), reducing error by 18% compared to uniform E2M1 RTN.
-Hadamard rotation and outlier rotation are destructive at this model scale (mean ||dy||/||y|| > 0.5).
-
-Error propagation tracing across all 12 layers reveals that RMSNorm attenuates error by an average factor of 0.167. Each RMSNorm blocks ~83% of incoming error — after 12 layers, early-layer perturbations are completely washed out. Only the last 1-2 layers' errors meaningfully affect the final output.
-
-
-### 7. Dual-Metric Evaluation for GPTQ Benchmark Fairness
-
-The primary metric ||dy||/||y|| = ||(W_q - W)x|| / ||Wx|| measures per-matrix output-space Euclidean error uniformly across all matrices. GPTQ optimizes a different objective: min ||(W_q - W)X_cal||_F^2 = tr(ΔW^T ΔW H) where H = X_cal X_cal^T is the activation Gram matrix. This Hessian-weighted objective trades total Euclidean fidelity for fidelity in directions the model actually uses.
-
-To provide a fairer comparison, we also report the **total activation reconstruction error**:
-
-$$\text{total } \frac{\|\Delta W X\|}{\|W X\|} = \sqrt{\frac{\sum_i \|(W_{q,i} - W_i) X_i\|_F^2}{\sum_i \|W_i X_i\|_F^2}}$$
-
-This weights each matrix's error by its activation magnitude ||W_i X_i|| — matrices with larger output activations contribute more to the total. This aligns more closely with GPTQ's implicit Hessian weighting (large-activation matrices correspond to large diagonal entries in H). The per-matrix mean ||dy||/||y|| treats all matrices equally, which is appropriate for testing Theorem 1 but penalizes methods that sacrifice small-matrix fidelity to preserve large-matrix fidelity.
-
-Both metrics are reported for every configuration. The two metrics typically agree on method ranking; when they disagree, the discrepancy reveals which methods redistribute error across matrices.
 
 ## Methodology (Corrected)
 
@@ -53,20 +35,6 @@ For the 72-matrix Pearson correlation test, the significance threshold is Bonfer
 ### 5. Single-pass activation capture
 
 FP16 activations are captured once per checkpoint in a single forward pass before any quantization is applied. The same captured activations are reused across all quantization configurations for that checkpoint. This avoids the cascading confound that would arise from a two-pass approach (FP16 pass + quantized pass with different input data). Per Pitfall 5 of the measurement protocol, all quantized forward passes use the same input batch as the FP16 reference pass.
-
-### 6. Why PPL is the wrong metric for testing numerical analysis predictions
-
-**PPL measures final token distribution — it is the wrong metric for this investigation.** Theorem 1 predicts ||dy||/||y|| at the output of a linear map y = Wx. PPL (perplexity = exp(cross-entropy)) is computed at the final lm_head output after the error signal has passed through:
-
-```
-W_q → attention scores (QK^T/√d + softmax) → value-weighted sum → o_proj →
-residual add → RMSNorm → gate/up projections → GELU → down_proj →
-residual add → [repeat 12×] → final RMSNorm → lm_head → token logits → cross-entropy
-```
-
-Each of these operations transforms the error: RMSNorm attenuates by ~83%, the residual connection dilutes per-matrix error into the residual stream, attention mixes error across sequence positions, and the softmax/loss computation is non-linear in logit space. The result: **two methods with identical ||dy||/||y|| at the weight output can have different PPL, and vice versa.** The GPTQ results confirm this: GPTQ consistently *increases* ||dy||/||y|| (worse output-space error) while *decreasing* PPL (better final metric) — the column compensation shifts error to directions the downstream layers can tolerate better.
-
-**This report uses ||dy||/||y|| as the primary evaluation metric for all method comparisons. PPL is reported for contextual reference only and should not be used to rank quantization methods' fidelity to the original weights.**
 
 The mathematical derivations for Theorems 1-4 (the theoretical foundation of this project) are documented in `docs/THEOREM.md`. These derivations are referenced throughout this report but are not reproduced here.
 
@@ -171,114 +139,108 @@ Waterfall data is shown for layers 0, 5, 11 (as defined by the error propagation
 
 ## Extended PTQ Comparison
 
-### Primary Metrics: Per-Matrix and Total Activation Reconstruction Error
-
-The table below reports two complementary metrics:
-- **Mean ||dy||/||y||:** per-matrix output-space error, uniformly averaged across all quantizable weight matrices. This is the correct metric for testing Theorem 1 at per-matrix granularity.
-- **Total ||ΔWX||/||WX||:** activation-weighted total reconstruction error = sqrt(Σ||(W_q-W)X||²) / sqrt(Σ||WX||²). This weights matrices by their activation magnitude, aligning more closely with GPTQ's Hessian-weighted objective.
-
-Configurations are sorted by mean ||dy||/||y|| ascending (lower is better). See Methodology §7 for why both metrics are reported.
-
 ### 16-Config Comparison
 
-| Checkpoint | Format | Method | Mean \|\|dy\|\|/\|\|y\|\| |
-|------------|--------|--------|---------------------------|
-| fp16_baseline | FP8 | rtn | 0.013672 |
-| fp16_baseline | FP8 | gptq | 0.020385 |
-| fp16_baseline | FP4 | lloyd_max | 0.066427 |
-| fp16_baseline | FP4 | mxfp4 | 0.071446 |
-| fp16_baseline | FP4 | rtn | 0.080922 |
-| fp16_baseline | FP4 | gptq | 0.116885 |
-| fp16_baseline | FP8 | hadamard | 0.512558 |
-| fp16_baseline | FP8 | outlier | 1.012846 |
-| cond_regularized | FP8 | rtn | 0.014120 |
-| cond_regularized | FP8 | gptq | 0.021023 |
-| cond_regularized | FP4 | lloyd_max | 0.068038 |
-| cond_regularized | FP4 | mxfp4 | 0.073486 |
-| cond_regularized | FP4 | rtn | 0.083455 |
-| cond_regularized | FP4 | gptq | 0.120577 |
-| cond_regularized | FP8 | hadamard | 0.510644 |
-| cond_regularized | FP8 | outlier | 1.012394 |
+Two complementary metrics are reported for every configuration:
+- **Mean ||dy||/||y||:** per-matrix output-space error, uniformly averaged across all quantizable weight matrices. This is the correct metric for testing Theorem 1.
+- **Total ||ΔWX||/||WX||:** activation-weighted total reconstruction error = sqrt(Σ||(Wq-W)X||²) / sqrt(Σ||WX||²). Weights matrices by activation magnitude, aligning with GPTQ's Hessian-weighted objective. See Methodology §7.
+
+| Checkpoint | Format | Method | Mean ||dy||/||y|| | Total ||ΔWX||/||WX|| |
+|------------|--------|--------|---------------------------|-------------------------------|
+| cond_regularized | FP8 | rtn | 0.014120 | 0.013824 |
+| | FP8 | gptq | 0.021010 | 0.020699 |
+| | FP8 | hadamard | 0.510644 | 0.496478 |
+| | FP8 | outlier | 1.012394 | 1.011499 |
+| | FP4 | lloyd_max | 0.068038 | 0.066016 |
+| | FP4 | mxfp4 | 0.073486 | 0.072057 |
+| | FP4 | rtn | 0.083455 | 0.082045 |
+| | FP4 | gptq | 0.120697 | 0.123132 |
+| fp16_baseline | FP8 | rtn | 0.013672 | 0.013245 |
+| | FP8 | gptq | 0.020392 | 0.019897 |
+| | FP8 | hadamard | 0.512558 | 0.497926 |
+| | FP8 | outlier | 1.012846 | 1.011939 |
+| | FP4 | lloyd_max | 0.066427 | 0.063950 |
+| | FP4 | mxfp4 | 0.071446 | 0.069607 |
+| | FP4 | rtn | 0.080922 | 0.078578 |
+| | FP4 | gptq | 0.116946 | 0.118046 |
 
 ### Rankings by Output-Space Error
 
-**FP8 methods (both checkpoints):**
-1. **Round-to-nearest** (mean ||dy||/||y|| = 0.0137-0.0141) — best output-space fidelity
-2. **GPTQ** (mean ||dy||/||y|| = 0.0204-0.0210) — 49% worse output error than RTN
-3. Hadamard/Outlier are destructive (||dy||/||y|| > 0.5)
+**fp16_baseline:**
+- FP8: 1. **rtn** (0.013672) 2. gptq (0.020392) 3. hadamard (0.512558) 4. outlier (1.012846)
+- FP4: 1. **lloyd_max** (0.066427) 2. mxfp4 (0.071446) 3. rtn (0.080922) 4. gptq (0.116946)
 
-**FP4 methods (both checkpoints):**
-1. **Lloyd-Max** (mean ||dy||/||y|| = 0.0664-0.0680) — best FP4 method, -18% error vs RTN
-2. **MXFP4** (mean ||dy||/||y|| = 0.0714-0.0735)
-3. **Round-to-nearest** (mean ||dy||/||y|| = 0.0809-0.0835)
-4. **GPTQ** (mean ||dy||/||y|| = 0.1169-0.1206) — worst output-space error among viable methods
+**cond_regularized:**
+- FP8: 1. **rtn** (0.014120) 2. gptq (0.021010) 3. hadamard (0.510644) 4. outlier (1.012394)
+- FP4: 1. **lloyd_max** (0.068038) 2. mxfp4 (0.073486) 3. rtn (0.083455) 4. gptq (0.120697)
 
-**Key observation:** GPTQ achieves the WORST ||dy||/||y|| among viable methods — 44-49% higher than RTN. Column compensation trades total output-space fidelity for Hessian-weighted fidelity (see GPTQ Analysis below). Rank quantization methods by ||dy||/||y||, not by final-token metrics that are confounded by RMSNorm attenuation.
+**Key observations:**
+- Round-to-nearest (RTN) is the best FP8 method across both checkpoints
+- Lloyd-Max adaptive grids are the best FP4 method, reducing error by ~18% vs uniform RTN
+- GPTQ consistently increases both metrics by 45-50% — the column compensation trades total fidelity for Hessian-aligned fidelity
+- Hadamard/outlier rotation are destructive (>0.5 error at this model scale)
+- Condition-number regularization slightly worsens all methods (~3% increase in error)
+- **Both metrics agree on ranking** for all 4 viable methods (RTN, GPTQ, Lloyd-Max, MXFP4)
 
-**Checkpoint effect:** Condition-number regularization increases per-matrix ||dy||/||y|| for all quantization methods. Reducing kappa(W) does not improve quantization robustness — consistent with the Theorem 1 falsification (kappa has negligible correlation with ||dy||/||y||).
+**Note:** Hadamard rotation and outlier rotation methods are FP8-centric techniques. At FP4 precision they cause extreme instability due to increased activation dynamic range beyond FP4's limited exponent range.
 
 
 ## GPTQ Analysis: Column Compensation vs Output Error
 
-GPTQ weight compensation is compared against round-to-nearest (RTN) for each pair. Two complementary metrics are reported: **mean ||dy||/||y||** (per-matrix output-space error, uniform average across matrices) and **total ||ΔWX||/||WX||** (activation-weighted total reconstruction error, see Methodology §7).
+GPTQ weight compensation is compared against round-to-nearest (RTN) for each pair. Two complementary metrics are reported: mean ||dy||/||y|| (per-matrix uniform average) and total ||ΔWX||/||WX|| (activation-weighted total, aligned with GPTQ's Hessian-weighted objective).
 
-**Key finding: GPTQ consistently increases ||dy||/||y|| by 44-49%.** The total ||ΔWX||/||WX|| metric, which weights matrices by activation magnitude and aligns more closely with GPTQ's Hessian-weighted objective, shows a smaller (or reversed) gap — confirming that GPTQ sacrifices per-matrix Euclidean fidelity to preserve the directions the model actually uses.
+**Key finding: Both metrics agree — GPTQ increases output-space error by 45-50% across all configurations.** The total ||ΔWX||/||WX|| metric, despite weighting matrices by activation magnitude (aligning with GPTQ's implicit Hessian weighting), shows the same proportional increase. This confirms that GPTQ's column compensation genuinely sacrifices total output-space fidelity — the error is not just redistributed from large to small matrices, but increased overall.
 
-**Benchmark fairness:** The per-matrix mean ||dy||/||y|| penalizes GPTQ for its column compensation strategy — GPTQ redistributes error from large-activation matrices (which dominate the Hessian) to small-activation matrices (which contribute less to the total). The total ||ΔWX||/||WX|| metric corrects for this by weighting each matrix's error by its activation power. Both metrics are informative: ||dy||/||y|| tests Theorem 1's prediction at the per-matrix level; total ||ΔWX||/||WX|| evaluates the aggregate fidelity of the quantized model's computations.
+### fp16_baseline / FP8
+- **Mean ||dy||/||y||:** RTN = 0.013672 → GPTQ = 0.020392 (Δ = +0.006720, **+49%**)
+- **Total ||ΔWX||/||WX||:** RTN = 0.013245 → GPTQ = 0.019897 (Δ = +0.006652, **+50%**)
 
-### Fp16 Baseline / FP8
+### fp16_baseline / FP4
+- **Mean ||dy||/||y||:** RTN = 0.080922 → GPTQ = 0.116946 (Δ = +0.036025, **+45%**)
+- **Total ||ΔWX||/||WX||:** RTN = 0.078578 → GPTQ = 0.118046 (Δ = +0.039467, **+50%**)
 
-- **||dy||/||y||:** RTN = 0.013672 → GPTQ = 0.020385 (Delta = +0.006713) — GPTQ increases output error by 49%
+### cond_regularized / FP8
+- **Mean ||dy||/||y||:** RTN = 0.014120 → GPTQ = 0.021010 (Δ = +0.006890, **+49%**)
+- **Total ||ΔWX||/||WX||:** RTN = 0.013824 → GPTQ = 0.020699 (Δ = +0.006875, **+50%**)
 
-### Fp16 Baseline / FP4
+### cond_regularized / FP4
+- **Mean ||dy||/||y||:** RTN = 0.083455 → GPTQ = 0.120697 (Δ = +0.037242, **+45%**)
+- **Total ||ΔWX||/||WX||:** RTN = 0.082045 → GPTQ = 0.123132 (Δ = +0.041087, **+50%**)
 
-- **||dy||/||y||:** RTN = 0.080922 → GPTQ = 0.116885 (Delta = +0.035964) — GPTQ increases output error by 44%
-
-### Cond Regularized / FP8
-
-- **||dy||/||y||:** RTN = 0.014120 → GPTQ = 0.021023 (Delta = +0.006903) — GPTQ increases output error by 49%
-
-### Cond Regularized / FP4
-
-- **||dy||/||y||:** RTN = 0.083455 → GPTQ = 0.120577 (Delta = +0.037122) — GPTQ increases output error by 44%
-
-**Cross-format:** GPTQ adds ~0.007 to ||dy||/||y|| at FP8, ~0.037 at FP4. The proportional increase is consistent (~45-49%) regardless of format.
-
-**Interpretation:** GPTQ's column compensation solves a linear system to minimize Hessian-weighted reconstruction error (||W_q * H^{-1} * H - W * H||). This produces weights that better preserve the directions the model uses most, but the total ||(W_q - W)x|| increases because the optimization constraint is on the covariance-weighted norm, not the unweighted Euclidean norm. GPTQ trades total output-space fidelity for covariance-aligned fidelity — the ||dy||/||y|| increase is the cost of that trade.
+**Interpretation:** The dual-metric approach confirms that GPTQ's column compensation does not merely redistribute error — it increases total output-space error. The mechanism: GPTQ quantizes one column at a time and compensates remaining columns, which accumulates rounding error across the column sequence. The last column absorbs all accumulated compensation error with no remaining columns to compensate into. This sequential error accumulation outweighs any benefit from Hessian-aware column ordering.
 
 
 ## Lloyd-Max Analysis: Adaptive Grids vs Uniform E2M1
 
-Lloyd-Max adaptive grid quantization is compared against uniform E2M1 round-to-nearest for FP4 format. Lloyd-Max fits per-layer quantization levels to the weight distribution, minimizing the MSE between original and quantized weights. **This is the only method that consistently reduces both ||dy||/||y|| and total ||ΔWX||/||WX||.**
+Lloyd-Max adaptive grid quantization is compared against uniform E2M1 round-to-nearest for FP4 format. **This is the only method that consistently reduces both metrics.**
 
-### Fp16 Baseline
+### fp16_baseline
+- **Mean ||dy||/||y||:** Uniform = 0.080922 → Lloyd-Max = 0.066427 (Δ = -0.014494, **-18%**)
+- **Total ||ΔWX||/||WX||:** Uniform = 0.078578 → Lloyd-Max = 0.063950 (Δ = -0.014629, **-19%**)
 
-- **||dy||/||y||:** Uniform = 0.080922 → Lloyd-Max = 0.066427 (Delta = -0.0145) — **18% reduction** in output-space error
-- Attention mean delta: -0.0105, FFN mean delta: -0.0198
+### cond_regularized
+- **Mean ||dy||/||y||:** Uniform = 0.083455 → Lloyd-Max = 0.068038 (Δ = -0.015417, **-18%**)
+- **Total ||ΔWX||/||WX||:** Uniform = 0.082045 → Lloyd-Max = 0.066016 (Δ = -0.016029, **-20%**)
 
-### Cond Regularized
-
-- **||dy||/||y||:** Uniform = 0.083455 → Lloyd-Max = 0.068038 (Delta = -0.0154) — **18% reduction** in output-space error
-- Attention mean delta: -0.0114, FFN mean delta: -0.0207
-
-**Interpretation:** Unlike GPTQ (which increases total ||dy||/||y||), Lloyd-Max genuinely reduces the quantization error by fitting grid levels to the empirical weight distribution. The reduction is consistent across both checkpoints (~18%) and both matrix types (attention, FFN). FFN matrices benefit more (~-0.020) than attention matrices (~-0.011), likely because FFN weights have more structured distributions that the Lloyd-Max iteration can exploit.
-
-**Why Lloyd-Max works while κ-based approaches fail:** Lloyd-Max optimizes for ||W_q - W|| (weight-space MSE) directly from the weight histogram. Condition numbers capture worst-case *directional* sensitivity but FP4's unit roundoff (u = 0.25) dominates the actual error — all matrices have ||dW||/||W|| ≈ 0.15 regardless of κ. Lloyd-Max succeeds by reducing ||dW|| (better grid placement within FP4's constraints), not by exploiting κ structure.
+**Interpretation:** Unlike GPTQ (which increases total error), Lloyd-Max genuinely reduces quantization error by fitting grid levels to the empirical weight distribution. Both metrics show consistent ~18-20% reduction. The total metric shows slightly larger improvement (~19-20% vs ~18%), suggesting Lloyd-Max is particularly effective for large-activation matrices (which dominate the total metric). Lloyd-Max succeeds by reducing ||dW|| (better grid placement within FP4's constraints), not by exploiting κ structure.
 
 
 ## RMSNorm Error Blocking
 
-RMSNorm plays a critical role in controlling quantization error propagation through Transformer layers. This section synthesizes evidence from RMSNorm ablation experiments (Phase 2), per-layer attenuation measurements (Phase 4), and per-matrix output error data (Phase 5). Critically, **RMSNorm is the primary reason per-layer metrics like PPL fail** — it blocks ~83% of per-matrix error at each layer, meaning the error that reaches the final output is dominated by the last few layers' perturbations, not the per-matrix errors Theorem 1 predicts.
+RMSNorm plays a critical role in controlling quantization error propagation through Transformer layers. This section synthesizes evidence from RMSNorm ablation experiments (Phase 2), per-layer attenuation measurements (Phase 4), and per-matrix output error data (Phase 5).
 
 **Phase 2 finding:** RMSNorm ablation experiments demonstrated that removing RMSNorm causes quantization error to grow by 1000x or more across 12 layers. With RMSNorm present, per-layer error stays within the same order of magnitude as the input perturbation.
 
-**Phase 4 measurement:** Across 11 layers, the mean input RMSNorm attenuation ratio (||delta_post|| / ||delta_pre||) is 0.167. This corresponds to an 83% reduction in error magnitude at each RMSNorm — after traversing 12 layers, the error from layer 0's weight quantization has been attenuated by ~0.167^12 ≈ 1.6×10^-9, completely washed out. Only the last 1-2 layers' errors meaningfully affect the lm_head output. This is THE mechanism by which final-output metrics lose sensitivity to per-matrix error.
+**Phase 4 measurement:** Across 11 layers, the mean input RMSNorm attenuation ratio (||delta_post|| / ||delta_pre||) is 0.1667. 
+This corresponds to a 83.3% reduction in error magnitude at the input RMSNorm — RMSNorm consistently *blocks* (reduces) error magnitude.
 
-**Error decomposition (parallel/orthogonal):** At the input RMSNorm output, the mean parallel component is 0.064 and the mean orthogonal component is 0.008. The decomposition confirms that RMSNorm both reduces error magnitude and redirects error away from the signal direction — the Pythagorean identity ||d_total||^2 = ||d_parallel||^2 + ||d_orthogonal||^2 holds at each measurement point. The orthogonal component (which matters for classification) is an order of magnitude smaller than the parallel component.
+**Error decomposition (parallel/orthogonal):** At the input RMSNorm output, the mean parallel component (projection onto signal direction) is 0.063795, and the mean orthogonal component (residual) is 0.008348. 
+The parallel and orthogonal components are comparable, suggesting RMSNorm both reduces magnitude and redirects error away from the signal direction.
 
-**Phase 5 per-matrix evidence:** The mean tightness ratio (||dy||/||y|| / (kappa(W) * ||dW||/||W||)) across 84 matrices is 0.056. This is already 18x below the Theorem 1 bound at the matrix output — before any RMSNorm attenuation. The actual error reaching the lm_head is several orders of magnitude smaller.
+**Phase 5 per-matrix evidence:** The mean tightness ratio (||dy||/||y|| / (kappa(W) * ||dW||/||W||)) across 84 matrices is 0.0559. 
+A tightness ratio below 1.0 means the Theorem 1 bound is not saturated — the actual output error is smaller than the worst-case bound, consistent with RMSNorm's error-blocking and error-redirecting effects.
 
-**Synthesis:** RMSNorm functions as both an error attenuator and a propagation blocker. Each RMSNorm blocks ~83% of incoming error; the residual connection further dilutes the remaining error. The theoretical basis is established in Theorem 2 (see THEOREM.md). Combined with the cascade confound (§Methodology §6), this explains why two checkpoints can have per-matrix ||dy||/||y|| values that differ by 20%+ while a final-output metric shows negligible change — the metric is blind to per-matrix error structure.
+**Synthesis:** RMSNorm functions as both an error attenuator (reducing error magnitude by projecting it orthogonal to the signal) and a propagation blocker (preventing the Lipschitz multiplicative error cascade that would occur in unnormalized architectures). The theoretical basis is established in Theorem 2 (see ANALYSIS.md, Section 2.3), which shows that RMSNorm's output error is bounded by the input relative error with no multiplicative growth.
 
 
 ## Revised Theoretical Assessment
@@ -307,7 +269,7 @@ Theorem 1 is a single-layer bound. In a multi-layer transformer, each layer's ou
 
 **3. RMSNorm's non-multiplicative effect**
 
-Theorem 2 (THEOREM.md) shows that RMSNorm fundamentally changes the error propagation mechanism. Instead of the Lipschitz multiplicative cascade that would occur in unnormalized networks, RMSNorm projects error onto the orthogonal component of the signal, bounding relative error rather than amplifying it. The experimental data confirms this: RMSNorm attenuation ratios are consistently below 1.0 for the input norm, indicating systematic error reduction.
+Theorem 2 (see THEOREM.md) shows that RMSNorm fundamentally changes the error propagation mechanism. Instead of the Lipschitz multiplicative cascade that would occur in unnormalized networks, RMSNorm projects error onto the orthogonal component of the signal, bounding relative error rather than amplifying it. The experimental data confirms this: RMSNorm attenuation ratios are consistently below 1.0 for the input norm, indicating systematic error reduction.
 
 ### Evidence Summary
 

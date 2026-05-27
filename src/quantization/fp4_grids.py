@@ -103,41 +103,44 @@ class MXFP4Quantizer:
         self.fp4_grid = build_fp4_e2m1_grid()
 
     def quantize(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Quantize x to MXFP4.
+        """Quantize x to MXFP4 (vectorized — no Python per-block loop).
 
-        For each block of size B:
-        1. Find max absolute value
-        2. Compute shared E8M0 scale (power-of-2 nearest to max/grid_max)
-        3. Quantize each element with FP4 grid × block_scale
+        Divides the tensor into blocks of block_size. Each block gets
+        a shared power-of-2 scale factor.
         """
         orig_shape = x.shape
         x_flat = x.reshape(-1)
         n = x_flat.numel()
-        result = torch.zeros_like(x_flat)
+        B = self.block_size
 
-        grid_max = self.fp4_grid[-1].item()
+        # Pad to multiple of block_size
+        pad = (B - n % B) % B
+        if pad > 0:
+            x_flat = torch.cat([x_flat, torch.zeros(pad, device=x.device, dtype=x.dtype)])
+        n_padded = x_flat.numel()
+        n_blocks = n_padded // B
 
-        for start in range(0, n, self.block_size):
-            end = min(start + self.block_size, n)
-            block = x_flat[start:end]
+        # (n_blocks, B) — each row is a block
+        x_blocks = x_flat.reshape(n_blocks, B)
 
-            amax = block.abs().max().item()
-            if amax == 0:
-                result[start:end] = 0
-                continue
+        # Per-block amax: (n_blocks,) single GPU kernel
+        amax = x_blocks.abs().amax(dim=1)
 
-            # Shared scale: power-of-2 nearest to amax / grid_max
-            raw_scale = amax / grid_max
-            scale = 2.0 ** round(math.log2(max(raw_scale, 1e-12)))
+        # Per-block power-of-2 scale
+        grid_max = self.fp4_grid[-1]
+        raw_scale = (amax / grid_max).clamp(min=1e-12)
+        scale = 2.0 ** torch.log2(raw_scale).round()  # (n_blocks,)
 
-            # Quantize each element
-            device = x.device
-            grid = self.fp4_grid.to(device) * scale
-            block_q = self._round_to_grid(block, grid)
-            result[start:end] = block_q
+        # Scale each element by its block's reciprocal scale
+        scale_per_elem = scale.repeat_interleave(B)[:n_padded]  # (n_padded,)
+        x_normalized = x_flat / scale_per_elem.clamp(min=1e-12)
 
-        return result.reshape(orig_shape)
+        # Round normalized values to nearest FP4 grid level
+        x_q_normalized = self._round_to_grid(x_normalized, self.fp4_grid.to(x.device))
+
+        # Rescale
+        result = (x_q_normalized * scale_per_elem)[:n].reshape(orig_shape)
+        return result
 
     @staticmethod
     def _round_to_grid(x: torch.Tensor, grid: torch.Tensor) -> torch.Tensor:
