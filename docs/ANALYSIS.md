@@ -1,8 +1,8 @@
 # 实验设计审查
 
-> 最后更新：2026-05-18
-> **修正：** PPL 已确认为混在指标（confounded metric）。定理 1 检验应在线性层输出处使用 ||dy||/||y||。PPL 在 RMSNorm（每层衰减 ~83%）、attention、FFN、残差连接和 lm_head 之后测量最终 token 分布——该级联混淆使得 PPL 无法反映每矩阵的计算保真度。见 REPORT.md 方法论 §6。
-> **理论推导已迁移：** 第二部分的全部定理推导（定理 1–4、GPTQ、策略 B）已移至 [`THEOREM.md`](THEOREM.md)。
+> 最后更新：2026-05-31
+> **修正：** PPL 已完全弃用。所有实验使用 `||dy||/||y||`（线性层输出空间相对误差）作为唯一评估指标。项目源代码中的 `evaluate_perplexity` 已移除，替换为 `evaluate_loss`。所有结果 JSON 中的 PPL 键已转换为 loss 键。
+> **理论推导已迁移：** 全部定理推导（定理 1、1′、2–4、GPTQ、策略 A/B）位于 [`THEOREM.md`](THEOREM.md)。
 
 ---
 
