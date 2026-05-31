@@ -89,19 +89,43 @@ $O(\|\delta W\|^2)$ 项的出现是因为不等式 $\|\hat{y} - y\| \leq \|\delt
 
 **紧性。** 当 $x = v_{\min}$ 且 $\delta W \propto u_{\min} v_{\min}^T$ 时，等号成立。此时 $\|Wx\| = \sigma_{\min}\|x\|$ 且 $\|\delta W x\| = \|\delta W\| \|x\|$。
 
-上面的计算中， $\kappa(W)$ 基于规范界，假设扰动 $\delta W$ 可以取任意方向，这对应了最坏情况输入。下面这种建模则与实际量化噪声更加接近：由于 FP 量化的本质是每个权重元素独立舍入到最近格点，产生的是**逐元素有界的结构化扰动**；针对这一结构，Skeel、Oettli–Prager 及 Higham 框架给出了更匹配的**逐分量条件数（component-wise condition number）**：
+上面的计算中，$\kappa(W)$ 基于规范界，假设扰动 $\delta W$ 可以取任意方向，这对应了最坏情况输入。下面这种建模则与实际量化噪声更加接近：由于 FP 量化的本质是每个权重元素独立舍入到最近格点，产生的是**逐元素有界的结构化扰动**；针对这一结构，Skeel、Oettli–Prager 及 Higham 框架给出了更匹配的**逐分量条件数（component-wise condition number）**。
+
+**陈述。** 对于 $y = Wx$，设 FP 量化 $\hat{W}$ 满足逐元素相对误差不超过单位舍入 $u$：
 
 $$
-\text{cond}_{cw}(W, x) = \frac{\| |W| \cdot |x| \|}{\|Wx\|}
+|\hat{W}_{ij} - W_{ij}| \leq u \cdot |W_{ij}|, \quad \forall i, j
 $$
 
-其中 $|W|$、$|x|$ 表示逐元素取绝对值。对应的逐分量误差界为：
+则前向误差满足：
 
 $$
-\frac{\|\delta y\|}{\|y\|} \leq \text{cond}_{cw}(W, x) \cdot u
+\frac{\|\delta y\|}{\|y\|} \leq \text{cond}_{\text{cw}}(W, x) \cdot u
 $$
 
-其中 $u$ 为单位舍入。$\text{cond}_{cw}(W,x)$ 通过 $|W| \cdot |x|$ 直接编码每个权重元素对输出的实际加权贡献，因此与 FP 量化的逐元素误差结构天然吻合。
+其中**逐分量条件数**定义为：
+
+$$
+\text{cond}_{\text{cw}}(W, x) = \frac{\| |W| \cdot |x| \|}{\|Wx\|}
+$$
+
+$|W|$、$|x|$ 表示逐元素取绝对值。
+
+**推导。** FP 量化的逐分量后向误差为：
+
+$$
+\omega(\Delta W) = \min\{\epsilon : |\Delta W_{ij}| \leq \epsilon \cdot |W_{ij}|,\ \forall i,j\} \leq u
+$$
+
+由 Oettli–Prager 定理，前向误差界为：
+
+$$
+\|\delta y\| = \|\Delta W \cdot x\| = \left\|\sum_j \Delta W_{*,j} \cdot x_j\right\| \leq \sum_j \|\Delta W_{*,j}\| \cdot |x_j| \leq \sum_j u \cdot \||W_{*,j}|\| \cdot |x_j| = u \cdot \| |W| \cdot |x| \|
+$$
+
+两边除以 $\|y\| = \|Wx\|$ 即得该界。
+
+$\text{cond}_{\text{cw}}(W,x)$ 通过 $|W| \cdot |x|$ 直接编码每个权重元素对输出的实际加权贡献，因此与 FP 量化的逐元素误差结构天然吻合。
 
 ### 2.2 定理 2 RMSNorm 误差阻断
 
@@ -359,21 +383,97 @@ $$
 
 **收敛性。** 每一步非增地减少失真——步骤 1 按构造；步骤 2 计算每个区域的 $L^2$ 最优代表。失真下界为 0，所以算法单调收敛。极限点满足两个条件，是局部最小值。收敛是线性的（典型：10–20 次迭代，对于行为良好的分布）。
 
-**κ 加权变体（策略 A）。** 用 κ 调整权重替换均匀权重：
+### 2.6 策略之 κ 加权 Lloyd-Max
+
+**动机。** 标准 Lloyd-Max（定理 4）最小化 $\mathbb{E}[(w - Q(w))^2]$，对所有权重一视同仁。然而，在高条件数矩阵（$\kappa \gg 1$）中，大幅值权重的误差在不良奇异方向上被放大更多。策略 A 通过向失真泛函引入 $\kappa$ 相关的重要性权重 $c(w; \kappa)$，为高 $\kappa$ 层的大权重分配更多量化精度。
+
+**定义 1（κ 加权失真）。** 对于条件数为 $\kappa = \kappa(W)$、权重函数 $c: \mathbb{R} \times [1, \infty) \to \mathbb{R}^+$ 的权重矩阵 $W$，κ 加权失真定义为：
 
 $$
-\mathcal{D}_\kappa = \sum_{i=1}^K \int_{R_i} (w - q_i)^2 \cdot c(w) \cdot p(w) \, dw
+\mathcal{D}_\kappa = \mathbb{E}\left[c(w; \kappa) \cdot (w - Q(w))^2\right]
 $$
 
-其中 $c(w) = 1 + \alpha \cdot (\kappa - 1) \cdot |w|/\max|w|$ 在高 κ 层中上权重化大权值。质心更新变为：
+**定义 2（κ 权重函数，策略 A）。** 权重函数为：
 
 $$
-q_i^* = \frac{\int_{R_i} w \cdot c(w) \cdot p(w) \, dw}{\int_{R_i} c(w) \cdot p(w) \, dw}
+c(w; \kappa) = 1 + \alpha \cdot \max(0, \kappa - 1) \cdot \frac{|w|}{\max|W|}
 $$
 
-这是加权质心。收敛性质保持不变——它仍是坐标下降，现在在失真度量中权重化重要误差。
+其中 $\alpha \in [0, 1]$ 为可调超参数（$\alpha = 0$ 退化为标准 Lloyd-Max；实验中取 $\alpha = 0.5$）。该函数满足：
 
-### 2.6 条件数正则化方法
+- $c(|w|; \kappa=1) = 1$ 对所有 $|w|$ 成立：良态矩阵使用均匀权重
+- $c(w; \kappa) \geq 1$——重要性不低于均匀情形
+- $c(w; \kappa)$ 关于 $|w|$ 单调递增——大权重获得更高重要性
+- $\dfrac{c(w_{\max}; \kappa)}{c(w_{\min}; \kappa)} \approx 1 + \alpha(\kappa - 1)$——动态范围由 $\kappa$ 决定
+
+**定理（κ 加权 Lloyd-Max 最优性）。** 最小化 $\mathcal{D}_\kappa$ 的量化器 $Q_\kappa$ 满足：
+
+1. **最近邻条件：**
+   $$R_i = \{w : |w - q_i| \leq |w - q_j| \text{ 对所有 } j \neq i\}$$
+   权重函数 $c(w; \kappa)$ 不依赖于量化索引 $i$，因此决策边界仍为 Voronoi 区域。
+
+2. **κ 加权质心条件：**
+   $$q_i^* = \frac{\int_{R_i} w \cdot c(w; \kappa) \cdot p(w) \, dw}{\int_{R_i} c(w; \kappa) \cdot p(w) \, dw} = \frac{\mathbb{E}[w \cdot c(w; \kappa) \mid w \in R_i]}{\mathbb{E}[c(w; \kappa) \mid w \in R_i]}$$
+   这是 $R_i$ 内 $w$ 的 $c(w; \kappa)$ 加权条件均值。
+
+**证明。**
+
+量化器将 $\mathbb{R}$ 划分为 $K$ 个决策区域 $R_i = [\theta_{i-1}, \theta_i)$，其中 $\theta_0 = -\infty$，$\theta_K = \infty$，$\theta_i = (q_i + q_{i+1})/2$（$i = 1, \ldots, K-1$）。κ 加权失真为：
+
+$$
+\mathcal{D}_\kappa(\{R_i\}, \{q_i\}) = \sum_{i=1}^K \int_{R_i} c(w; \kappa) \cdot (w - q_i)^2 \cdot p(w) \, dw
+$$
+
+**步骤 1（固定 $\{q_i\}$，优化 $\{R_i\}$）。** 对于固定的 $w$，最优量化索引 $i$ 最小化 $(w - q_i)^2$。由于 $c(w; \kappa) > 0$ 不依赖于 $i$，因子 $c(w; \kappa)$ 消去：
+
+$$
+\arg\min_i c(w; \kappa) \cdot (w - q_i)^2 = \arg\min_i (w - q_i)^2
+$$
+
+因此最近邻条件不变：$R_i = \{w : |w - q_i| \leq |w - q_j| \text{ 对所有 } j \neq i\}$。
+
+**步骤 2（固定 $\{R_i\}$，优化 $\{q_i\}$）。** 对于给定的 $R_i$，子问题为：
+
+$$
+q_i^* = \arg\min_q \int_{R_i} c(w; \kappa) \cdot (w - q)^2 \cdot p(w) \, dw
+$$
+
+对 $F(q) = \int_{R_i} c(w; \kappa) \cdot (w - q)^2 \cdot p(w) \, dw$ 关于 $q$ 求导并令其为零：
+
+$$
+\frac{\partial F}{\partial q} = -2 \int_{R_i} c(w; \kappa) \cdot (w - q) \cdot p(w) \, dw = 0
+$$
+
+$$
+\int_{R_i} c(w; \kappa) \cdot q \cdot p(w) \, dw = \int_{R_i} c(w; \kappa) \cdot w \cdot p(w) \, dw
+$$
+
+由于 $q$ 在 $R_i$ 内为常数：
+
+$$
+q_i^* = \frac{\int_{R_i} w \cdot c(w; \kappa) \cdot p(w) \, dw}{\int_{R_i} c(w; \kappa) \cdot p(w) \, dw}
+$$
+
+**经验实现（有限样本）。** 给定 $W$ 的 $n$ 个权重样本 $\{w_j\}_{j=1}^n$，迭代 $t$ 时的经验质心更新为：
+
+$$
+q_i^{(t+1)} = \frac{\sum_{j \in R_i^{(t)}} w_j \cdot c(w_j; \kappa)}{\sum_{j \in R_i^{(t)}} c(w_j; \kappa)}
+$$
+
+其中 $c(w_j; \kappa) = 1 + \alpha \cdot \max(0, \kappa - 1) \cdot |w_j| / \max_j |w_j|$，$R_i^{(t)} = \{j : |w_j - q_i^{(t)}| \leq |w_j - q_k^{(t)}| \text{ 对所有 } k\}$。
+
+**收敛性。** 交替最小化（坐标下降）单调收敛到 $\mathcal{D}_\kappa$ 的局部极小值：
+
+- 步骤 1 按构造非增地减少 $\mathcal{D}_\kappa$（固定 $\{q_i\}$ 下的全局最优）
+- 步骤 2 计算固定 $\{R_i\}$ 时 $\mathcal{D}_\kappa$ 的精确极小值
+- $\mathcal{D}_\kappa \geq 0$ 且可行集有限（$K$ 层级），因此单调收敛到稳定点得到保证
+
+**特殊情形。**
+
+- $\alpha = 0$ 或 $\kappa = 1$：$c(w; \kappa) \equiv 1$，退化为标准 Lloyd-Max
+- $\alpha > 0, \kappa \gg 1$：网格点向大 $|w|$ 值偏移，为权重分布的尾部分配更多量化层级
+
+### 2.7 策略之 条件数正则化方法
 
 **目标：**
 
