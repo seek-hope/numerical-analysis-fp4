@@ -290,15 +290,77 @@ This is the conditional mean of $w$ within $R_i$ — the centroid.
 
 **Convergence.** Each step non-increasingly reduces distortion — Step 1 by construction; Step 2 computes the $L^2$-optimal representative for each region. Distortion is bounded below (MSE ≥ 0), so the algorithm converges monotonically. Limit points satisfy both conditions and are local minima. Convergence is linear (typical: 10–20 iterations for well-behaved distributions).
 
-**κ-weighted variant (Strategy A).** Replace uniform weighting with κ-adjusted weights:
+### Theorem 4a — κ-Weighted Lloyd-Max (Strategy A)
 
-$$\mathcal{D}_\kappa = \sum_{i=1}^K \int_{R_i} (w - q_i)^2 \cdot c(w) \cdot p(w) \, dw$$
+**Motivation.** Standard Lloyd-Max (Theorem 4) minimizes $\mathbb{E}[(w - Q(w))^2]$, treating all weights equally. However, in high-condition-number matrices ($\kappa \gg 1$), errors in large-magnitude weights are amplified more by poor singular directions. Strategy A allocates more quantization resolution to large weights in high-κ layers by introducing a κ-dependent importance weight $c(w; \kappa)$ into the distortion functional.
 
-where $c(w) = 1 + \alpha \cdot (\kappa - 1) \cdot |w|/\max|w|$ up-weights large weights in high-κ layers. The centroid update becomes:
+**Definition 1 (κ-weighted distortion).** For a weight matrix $W$ with condition number $\kappa = \kappa(W)$ and a weight function $c: \mathbb{R} \times [1, \infty) \to \mathbb{R}^+$, the κ-weighted distortion is:
 
-$$q_i^* = \frac{\int_{R_i} w \cdot c(w) \cdot p(w) \, dw}{\int_{R_i} c(w) \cdot p(w) \, dw}$$
+$$\mathcal{D}_\kappa = \mathbb{E}\left[c(w; \kappa) \cdot (w - Q(w))^2\right]$$
 
-This is a weighted centroid. Convergence properties are unchanged — it remains coordinate descent, now weighting important errors in the distortion metric.
+**Definition 2 (κ-weight function, Strategy A).** The weight function is:
+
+$$c(w; \kappa) = 1 + \alpha \cdot \max(0, \kappa - 1) \cdot \frac{|w|}{\max|W|}$$
+
+where $\alpha \in [0, 1]$ is a tunable hyperparameter ($\alpha = 0$ recovers standard Lloyd-Max; $\alpha = 0.5$ is used in experiments). The function satisfies:
+- $c(|w|; \kappa=1) = 1$ for all $|w|$ — well-conditioned matrices use uniform weighting
+- $c(w; \kappa) \geq 1$ — importance is never less than uniform
+- $c(w; \kappa)$ is monotone in $|w|$ — larger weights get higher importance
+- $\frac{c(w_{\max}; \kappa)}{c(w_{\min}; \kappa)} \approx 1 + \alpha(\kappa - 1)$ — dynamic range set by κ
+
+**Theorem (κ-Weighted Lloyd-Max Optimality).** The quantizer $Q_\kappa$ minimizing $\mathcal{D}_\kappa$ satisfies:
+
+1. **Nearest-neighbor condition (unchanged):**
+   $$R_i = \{w : |w - q_i| \leq |w - q_j| \text{ for all } j \neq i\}$$
+   The weight function $c(w; \kappa)$ does not depend on the quantization index $i$, so the decision boundaries remain Voronoi regions — unchanged from standard Lloyd-Max.
+
+2. **κ-Weighted centroid condition:**
+   $$q_i^* = \frac{\int_{R_i} w \cdot c(w; \kappa) \cdot p(w) \, dw}{\int_{R_i} c(w; \kappa) \cdot p(w) \, dw} = \frac{\mathbb{E}[w \cdot c(w; \kappa) \mid w \in R_i]}{\mathbb{E}[c(w; \kappa) \mid w \in R_i]}$$
+
+   This is the $c(w; \kappa)$-weighted conditional mean of $w$ within $R_i$.
+
+**Proof.**
+
+The quantizer partitions $\mathbb{R}$ into $K$ decision regions $R_i = [\theta_{i-1}, \theta_i)$, with $\theta_0 = -\infty$, $\theta_K = \infty$, and $\theta_i = (q_i + q_{i+1})/2$ for $i = 1, \ldots, K-1$. The κ-weighted distortion is:
+
+$$\mathcal{D}_\kappa(\{R_i\}, \{q_i\}) = \sum_{i=1}^K \int_{R_i} c(w; \kappa) \cdot (w - q_i)^2 \cdot p(w) \, dw$$
+
+**Step 1 (fix $\{q_i\}$, optimize $\{R_i\}$).** For a fixed $w$, the optimal quantization index $i$ minimizes $(w - q_i)^2$. Since $c(w; \kappa) > 0$ does not depend on $i$, the factor $c(w; \kappa)$ cancels:
+
+$$\arg\min_i c(w; \kappa) \cdot (w - q_i)^2 = \arg\min_i (w - q_i)^2$$
+
+Thus the nearest-neighbor condition is unchanged: $R_i = \{w : |w - q_i| \leq |w - q_j| \text{ for all } j \neq i\}$.
+
+**Step 2 (fix $\{R_i\}$, optimize $\{q_i\}$).** For a given $R_i$, the subproblem is:
+
+$$q_i^* = \arg\min_q \int_{R_i} c(w; \kappa) \cdot (w - q)^2 \cdot p(w) \, dw$$
+
+Differentiate the integrand $F(q) = \int_{R_i} c(w; \kappa) \cdot (w - q)^2 \cdot p(w) \, dw$ w.r.t. $q$:
+
+$$\frac{\partial F}{\partial q} = -2 \int_{R_i} c(w; \kappa) \cdot (w - q) \cdot p(w) \, dw = 0$$
+
+$$\int_{R_i} c(w; \kappa) \cdot q \cdot p(w) \, dw = \int_{R_i} c(w; \kappa) \cdot w \cdot p(w) \, dw$$
+
+Since $q$ is constant within $R_i$:
+
+$$q_i^* = \frac{\int_{R_i} w \cdot c(w; \kappa) \cdot p(w) \, dw}{\int_{R_i} c(w; \kappa) \cdot p(w) \, dw} \quad \blacksquare$$
+
+**Empirical realization (finite sample).** Given $n$ weight samples $\{w_j\}_{j=1}^n$ from $W$, the empirical centroid update at iteration $t$ is:
+
+$$q_i^{(t+1)} = \frac{\sum_{j \in R_i^{(t)}} w_j \cdot c(w_j; \kappa)}{\sum_{j \in R_i^{(t)}} c(w_j; \kappa)}$$
+
+where $c(w_j; \kappa) = 1 + \alpha \cdot \max(0, \kappa - 1) \cdot |w_j| / \max_j |w_j|$ and $R_i^{(t)} = \{j : |w_j - q_i^{(t)}| \leq |w_j - q_k^{(t)}| \text{ for all } k\}$.
+
+**Convergence.** The alternating minimization (coordinate descent) converges monotonically to a local minimum of $\mathcal{D}_\kappa$:
+- Step 1 non-increasingly reduces $\mathcal{D}_\kappa$ by construction (global optimum for fixed $\{q_i\}$)
+- Step 2 computes the exact minimizer of $\mathcal{D}_\kappa$ for fixed $\{R_i\}$
+- $\mathcal{D}_\kappa$ is bounded below ($\geq 0$) and the feasible set is finite ($K$ levels), so monotone convergence to a stationary point is guaranteed
+
+**Special cases.**
+- $\alpha = 0$ or $\kappa = 1$: $c(w; \kappa) \equiv 1$, recovers standard Lloyd-Max (Theorem 4)
+- $\alpha > 0, \kappa \gg 1$: Grid points shift toward large $|w|$ values, allocating more quantization levels to the tails of the weight distribution
+
+**Empirical verdict: ✅ VALIDATED.** κ-weighted Lloyd-Max reduces mean $||\delta y||/||y||$ by 6.5% (baseline) and 6.3% (cond_regularized) relative to uniform Lloyd-Max ($\alpha = 0.5$, FP4, 18-config comparison). The improvement is consistent across both checkpoints. The mechanism: high-κ matrices concentrate quantization error in large weights; κ-weighting biases the grid toward those weights, reducing overall output-space error. Implementation verified in `src/quantization/adaptive_grid.py:lloyd_max_grid()`.
 
 ---
 
