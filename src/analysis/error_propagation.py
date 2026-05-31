@@ -263,10 +263,11 @@ class ErrorPropagationTracker:
 
         Returns self for method chaining.
         """
+        n_hooks = len(self._hook_handles)
         for handle in self._hook_handles:
             handle.remove()
         self._hook_handles.clear()
-        print(f"[Tracker] Removed {len(self._hook_handles)} hooks")
+        print(f"[Tracker] Removed {n_hooks} hooks")
         return self
 
     # ── Offline Error Computation ─────────────────────────────

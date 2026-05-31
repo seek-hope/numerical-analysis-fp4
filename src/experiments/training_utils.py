@@ -7,7 +7,7 @@ Supports two modes:
 Auto-selects real data if .bin files exist, otherwise falls back to offline.
 """
 
-import random, os, math
+import os
 import torch
 import numpy as np
 from torch.utils.data import IterableDataset, Dataset, DataLoader
@@ -308,18 +308,16 @@ def train_epoch(model, dataloader, optimizer, device, max_steps: int = 1500,
         optimizer.step()
 
         if step % log_interval == 0:
-            ppl = torch.exp(loss).item()
             metrics.append({
                 'step': step,
                 'loss': loss.item(),
-                'perplexity': ppl,
             })
 
     return metrics
 
 
-def evaluate_perplexity(model, dataloader, device, max_steps: int = 200) -> float:
-    """Evaluate perplexity on a held-out set."""
+def evaluate_loss(model, dataloader, device, max_steps: int = 200) -> float:
+    """Evaluate average cross-entropy loss on a held-out set."""
     model.eval()
     total_loss = 0.0
     total_tokens = 0
@@ -341,8 +339,7 @@ def evaluate_perplexity(model, dataloader, device, max_steps: int = 200) -> floa
             total_loss += out['loss'].item() * valid_tokens
             total_tokens += valid_tokens
 
-    avg_loss = total_loss / max(total_tokens, 1)
-    return math.exp(avg_loss)
+    return total_loss / max(total_tokens, 1)
 
 
 def save_checkpoint(model, optimizer, metrics: list[dict],

@@ -2,8 +2,8 @@
 """
 FP4 QAT with numerical optimization techniques.
 
-Compares three strategies vs vanilla QAT-FP4 (which achieved train PPL 1.01
-but eval PPL 13.86 — severe overfitting):
+Compares three strategies vs vanilla QAT-FP4 (which showed severe
+overfitting in earlier experiments):
 
   1. Stochastic Rounding (SR)  — unbiased gradient estimation
   2. Adaptive Precision        — switch FP4→FP8 when gradient norm too low
@@ -122,7 +122,6 @@ def train_with_metrics(model, dataloader, optimizer, device,
             metrics.append({
                 'step': step,
                 'loss': loss.item(),
-                'perplexity': math.exp(loss.item()),
                 'grad_norm': grad_norm,
                 'precision': current_precision,
             })
@@ -185,7 +184,7 @@ def main():
     final = metrics[-1] if metrics else None
     if final:
         print(f"\nFinal step {final['step']}: loss={final['loss']:.4f} "
-              f"ppl={final['perplexity']:.2f} grad_norm={final['grad_norm']:.6f}")
+              f"grad_norm={final['grad_norm']:.6f}")
 
     if switches:
         print(f"\nPrecision switches: {len(switches)}")

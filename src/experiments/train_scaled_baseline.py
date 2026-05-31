@@ -12,7 +12,7 @@ import torch
 from src.model.config import MicroGemmaFPConfig
 from src.model.transformer import MicroGemmaFPForCausalLM
 from src.experiments.training_utils import (
-    get_dataloader, train_epoch, evaluate_perplexity,
+    get_dataloader, train_epoch,
     save_checkpoint, load_checkpoint,
 )
 
@@ -64,7 +64,7 @@ def main():
     all_metrics.extend(metrics)
 
     for m in metrics:
-        print(f"  step {m['step']:5d}  loss={m['loss']:.4f}  ppl={m['perplexity']:.2f}")
+        print(f"  step {m['step']:5d}  loss={m['loss']:.4f}")
 
     ckpt_path = os.path.join(args.output_dir, 'model.pt')
     save_checkpoint(model, optimizer, all_metrics, ckpt_path, {

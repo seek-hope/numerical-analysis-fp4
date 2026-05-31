@@ -33,13 +33,8 @@ def _fmt_val(v: float, fmt: str = ".4f") -> str:
     return f"{v:{fmt}}"
 
 
-def _fmt_ppl(v: float) -> str:
-    """Format perplexity to 2 decimal places."""
-    return _fmt_val(v, ".2f")
-
-
 def _fmt_delta(v: float) -> str:
-    """Format a signed delta (PPL or error) with sign."""
+    """Format a signed delta with sign."""
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return "—"
     return f"{v:+.6f}" if abs(v) < 1.0 else f"{v:+.4f}"
@@ -281,9 +276,9 @@ def write_methodology_section() -> str:
             "Calibration (GPTQ Hessian estimation, Lloyd-Max grid fitting) "
             "uses only the training split (first 95% of each data tier). "
             "Evaluation uses only the validation split (last 5% of each "
-            "tier). This eliminates the in-sample PPL optimism caused by "
-            "calibration and evaluation drawing from the same pool. The "
-            "split is enforced at the dataloader level via "
+            "tier). This eliminates the in-sample optimism (loss on calibration "
+            "data) caused by calibration and evaluation drawing from the same "
+            "pool. The split is enforced at the dataloader level via "
             "`get_dataloader(split='train')` and "
             "`get_dataloader(split='val')`. See ANALYSIS.md Section 1.4 "
             "for the original audit finding."
@@ -564,8 +559,9 @@ def write_executive_summary(
     lines.append(
         "The extended PTQ comparison evaluates up to 6 quantization methods "
         "across 2 checkpoints (FP16 baseline and condition-number-regularized) "
-        "and 2 formats (FP8 E4M3, FP4 E2M1), collecting both perplexity (PPL) "
-        "and per-matrix output errors for every configuration."
+        "and 2 formats (FP8 E4M3, FP4 E2M1), measuring per-matrix output "
+        "error (||dy||/||y||) and total activation reconstruction error "
+        "(||ΔWX||/||WX||) for every configuration."
     )
     if best_fp8_method:
         dy_str_fp8 = _fmt_dy(best_fp8_dy)
@@ -854,29 +850,20 @@ def write_ptq_comparison(comp_data: dict) -> str:
 
     configs = comp_data.get("configs", {})
 
-    # ── 24-Config Comparison Matrix ──
-    lines.append("### 24-Config Comparison Matrix")
+    # ── 16-Config Comparison Matrix ──
+    lines.append("### 16-Config Comparison Matrix")
     lines.append("")
     lines.append(
-        "The table below reports perplexity (PPL) and per-matrix output "
-        "error (mean ||dy||/||y|| across all matrices) for every evaluated "
-        "configuration. Configurations are grouped by checkpoint, then format, "
-        "sorted by PPL ascending within each group. Delta is relative to the "
-        "FP16 baseline for the same checkpoint."
+        "The table below reports per-matrix output error (mean ||dy||/||y|| "
+        "across all 84 weight matrices) and total activation reconstruction "
+        "error (||ΔWX||/||WX||) for every evaluated configuration. "
+        "Configurations are grouped by checkpoint, then format, "
+        "sorted by total error ascending within each group."
     )
     lines.append("")
 
-    # Build rows: (checkpoint, format, method, ppl, delta, mean_dy)
-    config_rows: list[tuple[str, str, str, float, float, float]] = []
-
-    # Track per-checkpoint FP16 baselines
-    fp16_baselines: dict[str, float] = {}
-    for ckpt_label in ("fp16_baseline", "cond_regularized"):
-        fp16_key = f"{ckpt_label}/FP16/baseline"
-        fp16_data = configs.get(fp16_key, {})
-        if isinstance(fp16_data, dict):
-            fp16_ppl = fp16_data.get("ppl", float("nan"))
-            fp16_baselines[ckpt_label] = fp16_ppl
+    # Build rows: (checkpoint, format, method, mean_dy, total_rel)
+    config_rows: list[tuple[str, str, str, float, float]] = []
 
     for config_key, config_val in configs.items():
         if not isinstance(config_val, dict):
@@ -886,10 +873,6 @@ def write_ptq_comparison(comp_data: dict) -> str:
             continue
         ckpt, fmt, method = parts
 
-        ppl = config_val.get("ppl", float("nan"))
-        if isinstance(ppl, float) and (math.isnan(ppl) or math.isinf(ppl)):
-            continue
-
         errs = config_val.get("per_matrix_errors", {})
         dy_vals = [
             v for v in errs.values()
@@ -898,38 +881,35 @@ def write_ptq_comparison(comp_data: dict) -> str:
         ]
         mean_dy = sum(dy_vals) / len(dy_vals) if dy_vals else float("nan")
 
-        fp16_ref = fp16_baselines.get(ckpt, float("nan"))
-        delta = ppl - fp16_ref if not (isinstance(fp16_ref, float) and math.isnan(fp16_ref)) else float("nan")
+        total_rel = config_val.get("total_rel_error", float("nan"))
 
-        config_rows.append((ckpt, fmt, method, ppl, delta, mean_dy))
+        config_rows.append((ckpt, fmt, method, mean_dy, total_rel))
 
-    # Sort by checkpoint name, then format, then PPL ascending
-    fmt_order = {"FP16": 0, "FP8": 1, "FP4": 2}
+    # Sort by checkpoint name, then format, then total error ascending
+    fmt_order = {"FP8": 0, "FP4": 1}
     config_rows.sort(key=lambda r: (
         r[0],
         fmt_order.get(r[1], 99),
-        r[3] if not (isinstance(r[3], float) and math.isnan(r[3])) else float("inf"),
+        r[4] if not (isinstance(r[4], float) and math.isnan(r[4])) else float("inf"),
     ))
 
-    ptq_header = "| Checkpoint | Format | Method | PPL | Delta | Mean ||dy||/||y|| |"
-    ptq_sep = "|------------|--------|--------|-----|-------|------------------|"
+    ptq_header = "| Checkpoint | Format | Method | Mean \\|\\|dy\\|\\|/\\|\\|y\\|\\| | Total \\|\\|ΔWX\\|\\|/\\|\\|WX\\|\\| |"
+    ptq_sep = "|------------|--------|--------|--------------------------|-------------------------------|"
     lines.append(ptq_header)
     lines.append(ptq_sep)
 
     current_ckpt = None
-    for ckpt, fmt, method, ppl, delta, mean_dy in config_rows:
+    for ckpt, fmt, method, mean_dy, total_rel in config_rows:
         ckpt_display = ckpt if ckpt != current_ckpt else ""
-        current_ckpt = ckpt if current_ckpt is None else current_ckpt
         if ckpt != current_ckpt:
             current_ckpt = ckpt
 
-        ppl_str = _fmt_ppl(ppl)
-        delta_str = _fmt_delta(delta)
         dy_str = _fmt_dy(mean_dy)
+        total_str = _fmt_dy(total_rel)
 
         lines.append(
             f"| {ckpt_display:<13s} | {fmt:<6s} | {method:<25s} "
-            f"| {ppl_str} | {delta_str} | {dy_str} |"
+            f"| {dy_str} | {total_str} |"
         )
 
     lines.append("")
@@ -938,14 +918,7 @@ def write_ptq_comparison(comp_data: dict) -> str:
     lines.append("### Best Per-Checkpoint Summary")
     lines.append("")
     for ckpt_label in ("fp16_baseline", "cond_regularized"):
-        fp16_ref = fp16_baselines.get(ckpt_label, float("nan"))
-        if not (isinstance(fp16_ref, float) and math.isnan(fp16_ref)):
-            lines.append(
-                f"**{ckpt_label.replace('_', ' ').title()}** "
-                f"(FP16 baseline PPL = {_fmt_ppl(fp16_ref)}):"
-            )
-        else:
-            lines.append(f"**{ckpt_label.replace('_', ' ').title()}**:")
+        lines.append(f"**{ckpt_label.replace('_', ' ').title()}**:")
 
         for fmt in ("FP8", "FP4"):
             best_method, _best_dy = _find_best_method(comp_data, ckpt_label, fmt)
@@ -959,9 +932,11 @@ def write_ptq_comparison(comp_data: dict) -> str:
                     and not (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))
                 ]
                 mean_dy = sum(dy_vals_list) / len(dy_vals_list) if dy_vals_list else float("nan")
+                total_rel = dy_data.get("total_rel_error", float("nan")) if isinstance(dy_data, dict) else float("nan")
                 lines.append(
                     f"- Best {fmt}: **{best_method}** "
-                    f"(mean ||dy||/||y|| = {_fmt_dy(mean_dy)})"
+                    f"(mean ||dy||/||y|| = {_fmt_dy(mean_dy)}, "
+                    f"total ||ΔWX||/||WX|| = {_fmt_dy(total_rel)})"
                 )
             else:
                 lines.append(f"- Best {fmt}: (no valid results)")
@@ -993,7 +968,7 @@ def write_gptq_analysis(comp_data: dict) -> str:
     lines.append(
         "GPTQ weight compensation is compared against round-to-nearest "
         "(RTN) for each pair (same checkpoint, same format). Negative deltas "
-        "indicate GPTQ reduces output-space error or PPL; positive values "
+        "indicate GPTQ reduces output-space error; positive values "
         "indicate GPTQ increases error."
     )
     lines.append("")
@@ -1011,11 +986,8 @@ def write_gptq_analysis(comp_data: dict) -> str:
         ckpt = parts[0] if len(parts) > 0 else "?"
         fmt = parts[1] if len(parts) > 1 else "?"
 
-        ppl_delta = pair_val.get("ppl_delta", float("nan"))
         mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
         total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
-        rtn_ppl = pair_val.get("rtn_ppl", float("nan"))
-        gptq_ppl = pair_val.get("gptq_ppl", float("nan"))
         rtn_mean_dy = pair_val.get("rtn_mean_dy", float("nan"))
         gptq_mean_dy = pair_val.get("gptq_mean_dy", float("nan"))
         rtn_total_rel = pair_val.get("rtn_total_rel", float("nan"))
@@ -1054,11 +1026,6 @@ def write_gptq_analysis(comp_data: dict) -> str:
         lines.append(section_title)
         lines.append("")
 
-        lines.append(
-            f"- **PPL:** RTN = {_fmt_ppl(rtn_ppl)} -> "
-            f"GPTQ = {_fmt_ppl(gptq_ppl)} "
-            f"(Delta = {_fmt_delta(ppl_delta)})"
-        )
         lines.append(
             f"- **Mean ||dy||/||y||:** RTN = {_fmt_dy(rtn_mean_dy)} -> "
             f"GPTQ = {_fmt_dy(gptq_mean_dy)} "
@@ -1148,11 +1115,8 @@ def write_lloyd_max_analysis(comp_data: dict) -> str:
         return "\n".join(lines)
 
     for ckpt, pair_val in lm_pairs.items():
-        ppl_delta = pair_val.get("ppl_delta", float("nan"))
         mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
         total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
-        uniform_ppl = pair_val.get("uniform_rtn_ppl", pair_val.get("rtn_ppl", float("nan")))
-        lloyd_max_ppl = pair_val.get("lloyd_max_ppl", float("nan"))
         uniform_dy = pair_val.get("uniform_mean_dy", pair_val.get("rtn_mean_dy", float("nan")))
         lloyd_max_dy = pair_val.get("lloyd_max_mean_dy", float("nan"))
         uniform_total = pair_val.get("uniform_total_rel", float("nan"))
@@ -1180,11 +1144,6 @@ def write_lloyd_max_analysis(comp_data: dict) -> str:
         lines.append("")
 
         lines.append(
-            f"- **PPL:** Uniform = {_fmt_ppl(uniform_ppl)} -> "
-            f"Lloyd-Max = {_fmt_ppl(lloyd_max_ppl)} "
-            f"(Delta = {_fmt_delta(ppl_delta)})"
-        )
-        lines.append(
             f"- **Mean ||dy||/||y||:** Uniform = {_fmt_dy(uniform_dy)} -> "
             f"Lloyd-Max = {_fmt_dy(lloyd_max_dy)} "
             f"(Delta = {_fmt_delta(mean_dy_delta)})"
@@ -1197,6 +1156,177 @@ def write_lloyd_max_analysis(comp_data: dict) -> str:
         lines.append(
             f"- **Attention mean delta:** {_fmt_delta(attn_delta)}, "
             f"**FFN mean delta:** {_fmt_delta(ffn_delta)}"
+        )
+        lines.append(f"- **Interpretation:** {dy_effect}.")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Section 7b: Stochastic Rounding Analysis
+# ═════════════════════════════════════════════════════════════════════════
+
+def write_stochastic_rounding_analysis(comp_data: dict) -> str:
+    """Write the Stochastic Rounding Analysis section (COMP-04)."""
+    lines = []
+    lines.append("## Stochastic Rounding Analysis: RTN_SR vs RTN")
+    lines.append("")
+    lines.append(
+        "Stochastic rounding (SR) replaces deterministic round-to-nearest "
+        "with unbiased stochastic quantization. Negative deltas indicate "
+        "SR reduces output-space error vs deterministic RTN; positive "
+        "values indicate SR increases error."
+    )
+    lines.append("")
+
+    sr_pairs = comp_data.get("comparisons", {}).get("rtn_sr_vs_rtn", {})
+
+    if not sr_pairs:
+        lines.append("*No RTN_SR vs RTN comparison data available.*")
+        lines.append("")
+        return "\n".join(lines)
+
+    for pair_key, pair_val in sr_pairs.items():
+        parts = pair_key.split("/")
+        ckpt = parts[0] if len(parts) > 0 else "?"
+        fmt = parts[1] if len(parts) > 1 else "?"
+
+        mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
+        total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
+        rtn_mean_dy = pair_val.get("rtn_mean_dy", float("nan"))
+        sr_mean_dy = pair_val.get("rtn_sr_mean_dy", float("nan"))
+        rtn_total_rel = pair_val.get("rtn_total_rel", float("nan"))
+        sr_total_rel = pair_val.get("rtn_sr_total_rel", float("nan"))
+
+        if not (isinstance(mean_dy_delta, float) and math.isnan(mean_dy_delta)):
+            if mean_dy_delta < 0:
+                dy_effect = (
+                    f"SR reduces per-matrix output-space error by "
+                    f"{abs(mean_dy_delta) * 100:.2f}% relative to RTN"
+                )
+            else:
+                dy_effect = (
+                    f"SR increases per-matrix output-space error by "
+                    f"{mean_dy_delta * 100:.2f}% relative to RTN"
+                )
+        else:
+            dy_effect = "Per-matrix error delta not available."
+
+        section_title = f"### {ckpt.replace('_', ' ').title()} / {fmt}"
+        lines.append(section_title)
+        lines.append("")
+
+        lines.append(
+            f"- **Mean ||dy||/||y||:** RTN = {_fmt_dy(rtn_mean_dy)} -> "
+            f"SR = {_fmt_dy(sr_mean_dy)} "
+            f"(Delta = {_fmt_delta(mean_dy_delta)})"
+        )
+        lines.append(
+            f"- **Total ||ΔWX||/||WX||:** RTN = {_fmt_dy(rtn_total_rel)} -> "
+            f"SR = {_fmt_dy(sr_total_rel)} "
+            f"(Delta = {_fmt_delta(total_rel_delta)})"
+        )
+        lines.append(f"- **Interpretation:** {dy_effect}.")
+        lines.append("")
+
+    # Cross-format observation
+    fp8_sr = [v for k, v in sr_pairs.items() if "/FP8" in k]
+    fp4_sr = [v for k, v in sr_pairs.items() if "/FP4" in k]
+
+    if fp8_sr:
+        fp8_deltas = [
+            p.get("mean_dy_delta") for p in fp8_sr
+            if not (isinstance(p.get("mean_dy_delta"), float)
+                    and math.isnan(p.get("mean_dy_delta", float("nan"))))
+        ]
+        if fp8_deltas:
+            mean_delta = sum(fp8_deltas) / len(fp8_deltas)
+            lines.append(
+                f"At FP8, stochastic rounding changes mean ||dy||/||y|| by "
+                f"{_fmt_delta(mean_delta)} on average. "
+                f"SR adds noise that is unbiased in expectation but increases "
+                f"per-sample forward-pass error."
+            )
+
+    if fp4_sr:
+        fp4_deltas = [
+            p.get("mean_dy_delta") for p in fp4_sr
+            if not (isinstance(p.get("mean_dy_delta"), float)
+                    and math.isnan(p.get("mean_dy_delta", float("nan"))))
+        ]
+        if fp4_deltas:
+            mean_delta = sum(fp4_deltas) / len(fp4_deltas)
+            lines.append(
+                f"At FP4, stochastic rounding changes mean ||dy||/||y|| by "
+                f"{_fmt_delta(mean_delta)} on average."
+            )
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Section 7c: κ-Weighted Lloyd-Max Analysis
+# ═════════════════════════════════════════════════════════════════════════
+
+def write_kappa_lloyd_max_analysis(comp_data: dict) -> str:
+    """Write the κ-Weighted Lloyd-Max Analysis section (COMP-05, Strategy A)."""
+    lines = []
+    lines.append("## κ-Weighted Lloyd-Max Analysis: Strategy A")
+    lines.append("")
+    lines.append(
+        "κ-weighted Lloyd-Max adaptive grids (Strategy A) are compared "
+        "against uniform Lloyd-Max grids for FP4 format. κ-weighting "
+        "allocates more quantization levels to large weights in "
+        "high-condition-number layers, theoretically reducing error "
+        "where it matters most. Negative deltas indicate κ-weighting "
+        "reduces error vs uniform."
+    )
+    lines.append("")
+
+    klm_pairs = comp_data.get("comparisons", {}).get("lloyd_max_kappa_vs_uniform", {})
+
+    if not klm_pairs:
+        lines.append("*No κ-weighted vs Uniform Lloyd-Max comparison data available.*")
+        lines.append("")
+        return "\n".join(lines)
+
+    for ckpt, pair_val in klm_pairs.items():
+        mean_dy_delta = pair_val.get("mean_dy_delta", float("nan"))
+        total_rel_delta = pair_val.get("total_rel_delta", float("nan"))
+        uniform_dy = pair_val.get("uniform_lloyd_mean_dy", float("nan"))
+        kappa_dy = pair_val.get("kappa_lloyd_mean_dy", float("nan"))
+        uniform_total = pair_val.get("uniform_lloyd_total_rel", float("nan"))
+        kappa_total = pair_val.get("kappa_lloyd_total_rel", float("nan"))
+
+        if not (isinstance(mean_dy_delta, float) and math.isnan(mean_dy_delta)):
+            if mean_dy_delta < 0:
+                dy_effect = (
+                    f"κ-weighting reduces output-space error by "
+                    f"{abs(mean_dy_delta) * 100:.2f}% relative to uniform Lloyd-Max"
+                )
+            else:
+                dy_effect = (
+                    f"κ-weighting increases output-space error by "
+                    f"{mean_dy_delta * 100:.2f}% relative to uniform Lloyd-Max"
+                )
+        else:
+            dy_effect = "Output-space error delta not available."
+
+        section_title = f"### {ckpt.replace('_', ' ').title()}"
+        lines.append(section_title)
+        lines.append("")
+
+        lines.append(
+            f"- **Mean ||dy||/||y||:** Uniform = {_fmt_dy(uniform_dy)} -> "
+            f"κ-weighted = {_fmt_dy(kappa_dy)} "
+            f"(Delta = {_fmt_delta(mean_dy_delta)})"
+        )
+        lines.append(
+            f"- **Total ||ΔWX||/||WX||:** Uniform = {_fmt_dy(uniform_total)} -> "
+            f"κ-weighted = {_fmt_dy(kappa_total)} "
+            f"(Delta = {_fmt_delta(total_rel_delta)})"
         )
         lines.append(f"- **Interpretation:** {dy_effect}.")
         lines.append("")
@@ -1690,19 +1820,27 @@ def main():
     sections.append(write_gptq_analysis(comp_data))
     sections.append("")
 
-    print(f"  [7/10] Lloyd-Max Analysis")
+    print(f"  [7/12] Lloyd-Max Analysis")
     sections.append(write_lloyd_max_analysis(comp_data))
     sections.append("")
 
-    print(f"  [8/10] RMSNorm Error Blocking")
+    print(f"  [8/12] Stochastic Rounding Analysis")
+    sections.append(write_stochastic_rounding_analysis(comp_data))
+    sections.append("")
+
+    print(f"  [9/12] κ-Weighted Lloyd-Max Analysis (Strategy A)")
+    sections.append(write_kappa_lloyd_max_analysis(comp_data))
+    sections.append("")
+
+    print(f"  [10/12] RMSNorm Error Blocking")
     sections.append(write_rmsnorm_analysis(trace_data, comp_data))
     sections.append("")
 
-    print(f"  [9/10] Revised Theoretical Assessment")
+    print(f"  [11/12] Revised Theoretical Assessment")
     sections.append(write_theoretical_assessment(th1_data, trace_data, comp_data))
     sections.append("")
 
-    print(f"  [10/10] References")
+    print(f"  [12/12] References")
     sections.append(write_references(args.analysis_doc))
     sections.append("")
 

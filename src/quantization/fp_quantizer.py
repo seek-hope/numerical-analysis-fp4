@@ -15,34 +15,29 @@ FP_FORMAT_SPECS = {
     'fp4_e2m1':  {'exp': 2, 'man': 1, 'bias': 1,  'emax': 2},
 }
 
-# Precomputed FP4 E2M1 quantization levels (16 values)
-# sign=1, exp=2 bits (0,1,2,3 with bias 1), man=1 bit
-# Normal: (-1)^s × 2^(e-bias) × (1 + m/2)
-FP4_LEVELS = torch.tensor([
-    0.0,
-    0.5, 0.625, 0.75, 0.875, 1.0, 1.25, 1.5, 1.75,
-    2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0,
-], dtype=torch.float32)
-
-FP8_E4M3_LEVELS = None  # Computed lazily
-
-
 def _build_fp_grid(exp_bits, man_bits, bias):
-    """Build sorted list of all representable positive values for a given FP format."""
+    """Build sorted list of all representable positive values for a given FP format.
+
+    Handles both normal and subnormal (denormal) numbers:
+    - Normal (e > 0): 2^(e-bias) × (1 + m/2^man_bits)
+    - Subnormal (e = 0): 2^(1-bias) × m/2^man_bits
+    """
     num_exp = 1 << exp_bits
     num_man = 1 << man_bits
     values = set()
     values.add(0.0)
 
     for e in range(num_exp):
-        exp_val = e - bias
-        scale = 2.0 ** exp_val
-        for m in range(num_man):
-            mantissa = 1.0 + m / num_man
-            if e == 0:
-                # Subnormal: scale = 2^(1-bias) (simplified)
-                continue
-            values.add(scale * mantissa)
+        if e == 0:
+            # Subnormal: 2^(1-bias) × m/2^man_bits
+            scale = 2.0 ** (1 - bias)
+            for m in range(num_man):
+                if m > 0:  # m=0 already covered by values.add(0.0)
+                    values.add(scale * m / num_man)
+        else:
+            exp_val = 2.0 ** (e - bias)
+            for m in range(num_man):
+                values.add(exp_val * (1.0 + m / num_man))
     return torch.tensor(sorted(values), dtype=torch.float32)
 
 

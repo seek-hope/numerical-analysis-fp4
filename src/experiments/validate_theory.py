@@ -5,7 +5,7 @@ Phase 1: Validate numerical analysis predictions of quantization error.
 Tests three theoretical predictions:
   P1: κ(W) correlates with per-layer quantization MSE
   P2: Early layers' errors are amplified more (Lipschitz propagation)
-  P3: Combined prediction E_ℓ = ε_ℓ × Π_{k>ℓ} L_k correlates with PPL
+  P3: Combined prediction E_ℓ = ε_ℓ × Π_{k>ℓ} L_k correlates with per-layer loss degradation
 
 
 Usage:
@@ -22,7 +22,7 @@ from src.quantization.fp_quantizer import FPQuantizer
 from src.analysis.condition import estimate_condition_number
 from src.analysis.lipschitz import compute_propagation_factors, estimate_layer_lipschitz
 from src.experiments.training_utils import (
-    get_dataloader, evaluate_perplexity, load_checkpoint,
+    get_dataloader, evaluate_loss, load_checkpoint,
 )
 
 
@@ -58,10 +58,10 @@ def main():
     load_checkpoint(model, None, args.checkpoint, device)
     model.eval()
 
-    # FP16 baseline PPL
+    # FP16 baseline loss
     loader = get_dataloader(8, 512, args.max_eval_steps, data_dir=args.data_dir)
-    fp16_ppl = evaluate_perplexity(model, loader, device, args.max_eval_steps)
-    print(f"FP16 baseline PPL: {fp16_ppl:.2f}")
+    fp16_loss = evaluate_loss(model, loader, device, args.max_eval_steps)
+    print(f"FP16 baseline loss: {fp16_loss:.4f}")
 
     n_layers = len(model.model.layers)
     quantizer = FPQuantizer(args.format, per_channel=True)
@@ -90,7 +90,7 @@ def main():
 
     # ── P3: Per-layer quantization experiment ──
     print(f"\n{'='*60}")
-    print("P3: Per-layer quantization → actual PPL degradation")
+    print("P3: Per-layer quantization → actual loss degradation")
     print(f"{'='*60}")
 
     results = []
@@ -103,10 +103,10 @@ def main():
         # Quantize only layer i
         mse = quantize_single_layer(model_i, i, quantizer)
 
-        # Measure PPL
+        # Measure loss
         loader_i = get_dataloader(8, 512, args.max_eval_steps, data_dir=args.data_dir)
-        ppl_i = evaluate_perplexity(model_i, loader_i, device, args.max_eval_steps)
-        degradation = ppl_i - fp16_ppl
+        loss_i = evaluate_loss(model_i, loader_i, device, args.max_eval_steps)
+        loss_increase = loss_i - fp16_loss
 
         # Predicted error
         kappa = kappa_per_layer[i]
@@ -114,7 +114,7 @@ def main():
         predicted = kappa * (mse ** 0.5) * prop_factor
 
         lt = model.config.layer_types[i]
-        print(f"  layer {i:2d} ({lt:8s}): PPL={ppl_i:.2f} Δ={degradation:+.2f} "
+        print(f"  layer {i:2d} ({lt:8s}): loss={loss_i:.4f} Δ={loss_increase:+.4f} "
               f"κ={kappa:.1f} prop={prop_factor:.2e} pred={predicted:.2e}")
 
         results.append({
@@ -124,14 +124,14 @@ def main():
             'propagation_factor': prop_factor,
             'quantization_mse': mse,
             'predicted_error': predicted,
-            'ppl': ppl_i,
-            'ppl_degradation': degradation,
+            'loss': loss_i,
+            'loss_increase': loss_increase,
         })
         del model_i
         torch.cuda.empty_cache()
 
     # ── Correlation analysis ──
-    degradations = [r['ppl_degradation'] for r in results]
+    loss_increases = [r['loss_increase'] for r in results]
     predictions = [r['predicted_error'] for r in results]
     kappas = [r['kappa'] for r in results]
     prop_factors = [r['propagation_factor'] for r in results]
@@ -146,16 +146,16 @@ def main():
             return 0
         return sum((x[i]-mx)*(y[i]-my) for i in range(n)) / (n*sx*sy)
 
-    r_kappa = pearson_r(kappas, degradations)
-    r_prop = pearson_r(prop_factors, degradations)
-    r_combined = pearson_r(predictions, degradations)
+    r_kappa = pearson_r(kappas, loss_increases)
+    r_prop = pearson_r(prop_factors, loss_increases)
+    r_combined = pearson_r(predictions, loss_increases)
 
     print(f"\n{'='*60}")
     print("VALIDATION SUMMARY")
     print(f"{'='*60}")
-    print(f"  P1: corr(κ, PPL degradation) = {r_kappa:.3f}")
-    print(f"  P2: corr(propagation, PPL degradation) = {r_prop:.3f}")
-    print(f"  P3: corr(predicted, actual PPL) = {r_combined:.3f}")
+    print(f"  P1: corr(κ, loss degradation) = {r_kappa:.3f}")
+    print(f"  P2: corr(propagation, loss degradation) = {r_prop:.3f}")
+    print(f"  P3: corr(predicted, actual loss) = {r_combined:.3f}")
     print(f"\n  Interpretation:")
     for name, r in [('P1: κ', r_kappa), ('P2: Lipschitz', r_prop),
                      ('P3: Combined', r_combined)]:
@@ -170,7 +170,7 @@ def main():
     # Save
     with open('checkpoints/theory_validation.json', 'w') as f:
         json.dump({
-            'fp16_ppl': fp16_ppl,
+            'fp16_loss': fp16_loss,
             'correlations': {
                 'kappa': r_kappa,
                 'propagation': r_prop,

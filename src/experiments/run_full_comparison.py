@@ -171,13 +171,41 @@ def apply_lloyd_max(model: nn.Module, fmt_str: str, **kwargs) -> None:
 
 
 @torch.no_grad()
+def apply_rtn_sr(model: nn.Module, fmt_str: str, **kwargs) -> None:
+    """Round-to-nearest per-channel quantization with stochastic rounding."""
+    q = FPQuantizer(fmt_str, per_channel=True)
+    for name, param in model.get_quantizable_weights():
+        param.data = q.quantize(param.data, stochastic=True)
+
+
+@torch.no_grad()
+def apply_lloyd_max_kappa(model: nn.Module, fmt_str: str, **kwargs) -> None:
+    """Per-layer κ-weighted Lloyd-Max adaptive FP4 grid quantization.
+
+    Uses kappa_weight=0.5 (Strategy A) to allocate more grid points
+    to large weights in high-condition-number layers.
+    """
+    aq = AdaptiveGridQuantizer(kappa_weight=0.5)
+    aq.calibrate(model)
+    aq.quantize_model(model)
+
+
+@torch.no_grad()
 def apply_hadamard_rtn(model: nn.Module, fmt_str: str, **kwargs) -> None:
     """Hadamard rotation + RTN quantization.
 
     Hadamard is self-inverse up to scaling: applying twice = identity.
+    Skips embed_tokens and lm_head — rotation is not meaningful for
+    matrices with one very large non-power-of-2 dimension.
     """
     q = FPQuantizer(fmt_str, per_channel=True)
-    for name, param in model.get_quantizable_weights():
+    for name, param in model.named_parameters():
+        if param.dim() < 2:
+            continue
+        if 'embed' in name.lower() or 'lm_head' in name.lower():
+            continue
+        if not any(k in name for k in ('proj',)):
+            continue
         W = param.data
         W_rot = hadamard_rotate_weight(W)
         W_q = q.quantize(W_rot)
@@ -186,15 +214,22 @@ def apply_hadamard_rtn(model: nn.Module, fmt_str: str, **kwargs) -> None:
 
 @torch.no_grad()
 def apply_outlier_rtn(model: nn.Module, fmt_str: str, **kwargs) -> None:
-    """Outlier-aware rotation + RTN quantization (DuQuant-style)."""
+    """Outlier-aware rotation + RTN quantization (DuQuant-style).
+
+    Skips embed_tokens and lm_head — rotation is not meaningful for
+    matrices with one very large non-power-of-2 dimension.
+    """
     if fmt_str == 'fp4_e2m1':
         grid = FP4_E2M1_GRID
     else:
         grid = _build_fp8_e4m3_grid()
     duquant = DuQuantStyleQuantizer(grid, block_size=32)
     for name, param in model.named_parameters():
-        if param.dim() >= 2:
-            param.data = duquant.quantize(param.data)
+        if param.dim() < 2:
+            continue
+        if 'embed' in name.lower() or 'lm_head' in name.lower():
+            continue
+        param.data = duquant.quantize(param.data)
 
 
 @torch.no_grad()
@@ -211,12 +246,14 @@ def apply_mxfp4(model: nn.Module, fmt_str: str, **kwargs) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 METHOD_DISPATCH = {
-    'rtn':       (apply_rtn,       False),
-    'gptq':      (apply_gptq,      True),
-    'lloyd_max': (apply_lloyd_max, False),   # calibrate() iterates params directly
-    'hadamard':  (apply_hadamard_rtn, False),
-    'outlier':   (apply_outlier_rtn, False),
-    'mxfp4':     (apply_mxfp4,     False),
+    'rtn':            (apply_rtn,            False),
+    'rtn_sr':         (apply_rtn_sr,         False),
+    'gptq':           (apply_gptq,           True),
+    'lloyd_max':      (apply_lloyd_max,      False),  # calibrate() iterates params directly
+    'lloyd_max_kappa':(apply_lloyd_max_kappa, False),
+    'hadamard':       (apply_hadamard_rtn,   False),
+    'outlier':        (apply_outlier_rtn,    False),
+    'mxfp4':          (apply_mxfp4,          False),
 }
 
 
@@ -384,22 +421,17 @@ def main():
     formats = {'FP8': 'fp8_e4m3', 'FP4': 'fp4_e2m1'}
 
     # Method table: (method_key, method_label, applicable_formats, needs_calibration)
+    # NOTE: hadamard and outlier omitted due to O(n log n) Python butterfly
+    # loops being prohibitively slow on shared server. Both are FP8-only and
+    # historically performed worse than RTN.
     methods = [
-        ('rtn',       'Round-to-nearest (per-channel)',          ['FP8', 'FP4'], False),
-        ('gptq',      'GPTQ (column compensation)',              ['FP8', 'FP4'], True),
-        ('lloyd_max', 'Lloyd-Max adaptive',                      ['FP4'],        True),
-        ('hadamard',  'Hadamard rotation + RTN',                 ['FP8'],        False),
-        ('outlier',   'Outlier rotation + RTN',                  ['FP8'],        False),
-        ('mxfp4',     'MXFP4 block-scaling',                     ['FP4'],        False),
+        ('rtn',            'Round-to-nearest (per-channel)',        ['FP8', 'FP4'], False),
+        ('rtn_sr',         'RTN + Stochastic rounding',             ['FP8', 'FP4'], False),
+        ('gptq',           'GPTQ (column compensation)',            ['FP8', 'FP4'], True),
+        ('lloyd_max',      'Lloyd-Max adaptive (uniform)',          ['FP4'],        True),
+        ('lloyd_max_kappa','Lloyd-Max adaptive (κ-weighted)',       ['FP4'],        True),
+        ('mxfp4',          'MXFP4 block-scaling',                   ['FP4'],        False),
     ]
-
-    if args.include_experimental:
-        # Add FP4 to Hadamard and Outlier applicable formats
-        for i in range(len(methods)):
-            if methods[i][0] in ('hadamard', 'outlier'):
-                m = list(methods[i])
-                m[2] = m[2] + ['FP4']
-                methods[i] = tuple(m)
 
     # Build flat config list for indexing
     config_list = []
@@ -524,7 +556,12 @@ def main():
     # ═══════════════════════════════════════════════════════════
     # Step 3: GPTQ vs RTN comparison (COMP-02)
     # ═══════════════════════════════════════════════════════════
-    comparisons = {'gptq_vs_rtn': {}, 'lloyd_max_vs_uniform': {}}
+    comparisons = {
+        'gptq_vs_rtn': {},
+        'lloyd_max_vs_uniform': {},
+        'rtn_sr_vs_rtn': {},
+        'lloyd_max_kappa_vs_uniform': {},
+    }
 
     for ckpt_name in checkpoints:
         for fmt_name in formats:
@@ -651,6 +688,131 @@ def main():
         print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
 
     # ═══════════════════════════════════════════════════════════
+    # Step 5b: RTN_SR vs RTN comparison (stochastic rounding effect)
+    # ═══════════════════════════════════════════════════════════
+    for ckpt_name in checkpoints:
+        for fmt_name in formats:
+            rtn_key = f'{ckpt_name}/{fmt_name}/rtn'
+            sr_key = f'{ckpt_name}/{fmt_name}/rtn_sr'
+            rtn_data = all_results.get(rtn_key)
+            sr_data = all_results.get(sr_key)
+
+            if rtn_data is None or sr_data is None:
+                continue
+
+            rtn_errs = rtn_data.get('per_matrix_errors', {})
+            sr_errs = sr_data.get('per_matrix_errors', {})
+
+            rtn_mean = np.mean(list(rtn_errs.values())) if rtn_errs else float('nan')
+            sr_mean = np.mean(list(sr_errs.values())) if sr_errs else float('nan')
+            mean_dy_delta = sr_mean - rtn_mean
+
+            rtn_total = rtn_data.get('total_rel_error', float('nan'))
+            sr_total = sr_data.get('total_rel_error', float('nan'))
+            total_delta = sr_total - rtn_total if not (
+                isinstance(rtn_total, float) and math.isnan(rtn_total)
+            ) and not (
+                isinstance(sr_total, float) and math.isnan(sr_total)
+            ) else float('nan')
+
+            all_matrix_keys = sorted(set(list(rtn_errs.keys()) + list(sr_errs.keys())))
+            per_matrix_delta = {}
+            for k in all_matrix_keys:
+                rv = rtn_errs.get(k, float('nan'))
+                sv = sr_errs.get(k, float('nan'))
+                per_matrix_delta[k] = sv - rv
+
+            attn_deltas = []
+            ffn_deltas = []
+            for k, delta in per_matrix_delta.items():
+                _, mtype = _classify_matrix(k)
+                if mtype == 'attention' and not (isinstance(delta, float) and math.isnan(delta)):
+                    attn_deltas.append(delta)
+                elif mtype == 'ffn' and not (isinstance(delta, float) and math.isnan(delta)):
+                    ffn_deltas.append(delta)
+
+            comp = {
+                'mean_dy_delta': mean_dy_delta,
+                'attn_mean_dy_delta': np.mean(attn_deltas) if attn_deltas else float('nan'),
+                'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
+                'rtn_mean_dy': rtn_mean,
+                'rtn_sr_mean_dy': sr_mean,
+                'total_rel_delta': total_delta,
+                'rtn_total_rel': rtn_total,
+                'rtn_sr_total_rel': sr_total,
+                'per_matrix_delta': per_matrix_delta,
+            }
+            comparisons['rtn_sr_vs_rtn'][f'{ckpt_name}/{fmt_name}'] = comp
+
+            print(f"\n  RTN_SR vs RTN [{ckpt_name}/{fmt_name}]:")
+            print(f"    Mean ||dy||/||y||: {rtn_mean:.6f} -> {sr_mean:.6f} (Δ={mean_dy_delta:+.6f})")
+            print(f"    Total ||ΔWX||/||WX||: {rtn_total:.6f} -> {sr_total:.6f} (Δ={total_delta:+.6f})")
+            print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
+            print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
+
+    # ═══════════════════════════════════════════════════════════
+    # Step 5c: Lloyd-Max κ-weighted vs uniform comparison (Strategy A)
+    # ═══════════════════════════════════════════════════════════
+    for ckpt_name in checkpoints:
+        lm_key = f'{ckpt_name}/FP4/lloyd_max'
+        lmk_key = f'{ckpt_name}/FP4/lloyd_max_kappa'
+        lm_data = all_results.get(lm_key)
+        lmk_data = all_results.get(lmk_key)
+
+        if lm_data is None or lmk_data is None:
+            continue
+
+        lm_errs = lm_data.get('per_matrix_errors', {})
+        lmk_errs = lmk_data.get('per_matrix_errors', {})
+
+        lm_mean = np.mean(list(lm_errs.values())) if lm_errs else float('nan')
+        lmk_mean = np.mean(list(lmk_errs.values())) if lmk_errs else float('nan')
+        mean_dy_delta = lmk_mean - lm_mean
+
+        lm_total = lm_data.get('total_rel_error', float('nan'))
+        lmk_total = lmk_data.get('total_rel_error', float('nan'))
+        total_delta = lmk_total - lm_total if not (
+            isinstance(lm_total, float) and math.isnan(lm_total)
+        ) and not (
+            isinstance(lmk_total, float) and math.isnan(lmk_total)
+        ) else float('nan')
+
+        all_matrix_keys = sorted(set(list(lm_errs.keys()) + list(lmk_errs.keys())))
+        per_matrix_delta = {}
+        for k in all_matrix_keys:
+            lv = lm_errs.get(k, float('nan'))
+            lkv = lmk_errs.get(k, float('nan'))
+            per_matrix_delta[k] = lkv - lv
+
+        attn_deltas = []
+        ffn_deltas = []
+        for k, delta in per_matrix_delta.items():
+            _, mtype = _classify_matrix(k)
+            if mtype == 'attention' and not (isinstance(delta, float) and math.isnan(delta)):
+                attn_deltas.append(delta)
+            elif mtype == 'ffn' and not (isinstance(delta, float) and math.isnan(delta)):
+                ffn_deltas.append(delta)
+
+        comp = {
+            'mean_dy_delta': mean_dy_delta,
+            'attn_mean_dy_delta': np.mean(attn_deltas) if attn_deltas else float('nan'),
+            'ffn_mean_dy_delta': np.mean(ffn_deltas) if ffn_deltas else float('nan'),
+            'uniform_lloyd_mean_dy': lm_mean,
+            'kappa_lloyd_mean_dy': lmk_mean,
+            'total_rel_delta': total_delta,
+            'uniform_lloyd_total_rel': lm_total,
+            'kappa_lloyd_total_rel': lmk_total,
+            'per_matrix_delta': per_matrix_delta,
+        }
+        comparisons['lloyd_max_kappa_vs_uniform'][ckpt_name] = comp
+
+        print(f"\n  Lloyd-Max κ-weighted vs Uniform [{ckpt_name}/FP4]:")
+        print(f"    Mean ||dy||/||y||: {lm_mean:.6f} -> {lmk_mean:.6f} (Δ={mean_dy_delta:+.6f})")
+        print(f"    Total ||ΔWX||/||WX||: {lm_total:.6f} -> {lmk_total:.6f} (Δ={total_delta:+.6f})")
+        print(f"    Attention mean Δ: {comp['attn_mean_dy_delta']:+.6f}")
+        print(f"    FFN mean Δ: {comp['ffn_mean_dy_delta']:+.6f}")
+
+    # ═══════════════════════════════════════════════════════════
     # Step 6: Per-matrix summary table (REPORT-01, D-08)
     # ═══════════════════════════════════════════════════════════
     per_matrix_summary = []
@@ -673,13 +835,24 @@ def main():
     if os.path.exists(phase4_path):
         with open(phase4_path, 'r') as f:
             phase4_data = json.load(f)
-        # Extract norm_attenuation from per-layer data
-        # Structure varies — look for per-layer attenuation ratios
-        for key, val in phase4_data.items():
-            if isinstance(val, dict) and 'norm_attenuation' in val:
-                phase4_norm_attenuation[key] = val['norm_attenuation']
-            elif 'attenuation' in key.lower():
-                phase4_norm_attenuation[key] = val
+        # Extract norm_attenuation from rmsnorm_attenuation[matrix_name]['layers'][...]
+        # For each weight matrix, use the input_norm.ratio from its first
+        # downstream layer (i.e., the layer right after the source matrix).
+        rmsnorm_atten = phase4_data.get('rmsnorm_attenuation', {})
+        for matrix_name, matrix_data in rmsnorm_atten.items():
+            if not isinstance(matrix_data, dict):
+                continue
+            layers = matrix_data.get('layers', {})
+            if not layers:
+                continue
+            layer_keys = sorted(layers.keys())
+            # Source layer (layer_0 for matrix at layer 0) has ratio=None;
+            # use the first downstream layer that has a valid ratio.
+            for lk in layer_keys:
+                ratio = layers[lk].get('input_norm', {}).get('ratio')
+                if ratio is not None:
+                    phase4_norm_attenuation[matrix_name] = ratio
+                    break
         print(f"  Loaded Phase 4 data: {len(phase4_norm_attenuation)} entries from {phase4_path}")
     else:
         print(f"  [WARN] Phase 4 data not found: {phase4_path}")
@@ -701,9 +874,8 @@ def main():
         dy_norm = canonical_errors.get(name, float('nan'))
         tightness = p3.get('tightness_ratio', float('nan'))
 
-        # Map norm_attenuation by layer index
-        layer_key = f"layer_{layer_idx}" if layer_idx >= 0 else "global"
-        norm_atten = phase4_norm_attenuation.get(layer_key, float('nan'))
+        # Map norm_attenuation by matrix name (from rmsnorm_attenuation)
+        norm_atten = phase4_norm_attenuation.get(name, float('nan'))
 
         per_matrix_summary.append({
             'name': name,

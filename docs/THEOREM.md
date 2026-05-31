@@ -41,6 +41,45 @@ The $O(\|\delta W\|^2)$ term arises because the inequality $\|\hat{y} - y\| \leq
 
 **Empirical verdict:** NO — Pearson $r(\kappa, \|\delta y\|/\|y\|) = -0.23$ across 84 matrices (Phase 3, `validate_theorem1.py`, 3 seeds). FP4 unit roundoff ($u = 0.25$) dominates: $\|\delta W\|/\|W\| \approx 0.15$ for ALL matrices regardless of $\kappa(W)$. See REPORT.md §3.
 
+The reason for this failure is fundamental: Theorem 1 assumes $\delta W$ is an arbitrary norm-bounded perturbation (the worst-case framework of classic matrix perturbation theory), but FP quantization produces a **structured component-wise perturbation** $|\delta W_{ij}| \leq u \cdot |W_{ij}|$. The component-wise structure makes $\kappa(W)$ the wrong condition measure. This is corrected in Theorem 1′ below.
+
+---
+
+## Theorem 1′ — Component-Wise Quantization Error Bound
+
+> **Numerical analysis foundation:** Skeel (1979) component-wise condition number; Oettli-Prager (1964) component-wise backward error; Higham (2002) *Accuracy and Stability of Numerical Algorithms*, §7.2.
+
+**Statement.** For $y = Wx$ with FP quantization $\hat{W}$ satisfying $|\hat{W}_{ij} - W_{ij}| \leq u \cdot |W_{ij}|$ (component-wise relative error ≤ unit roundoff $u$), the forward error satisfies:
+
+$$\frac{\|\delta y\|}{\|y\|} \leq \text{cond}_{\text{cw}}(W, x) \cdot u$$
+
+where the **component-wise condition number** is defined as:
+
+$$\text{cond}_{\text{cw}}(W, x) = \frac{\|\ |W| \cdot |x|\ \|}{\|Wx\|}$$
+
+**Derivation.** The component-wise backward error for FP quantization is:
+
+$$\omega(\Delta W) = \min\{\epsilon : |\Delta W_{ij}| \leq \epsilon \cdot |W_{ij}|, \ \forall i,j\} \leq u$$
+
+By the Oettli-Prager theorem, the forward error is bounded by:
+
+$$\|\delta y\| = \|\Delta W \cdot x\| = \left\|\sum_j \Delta W_{*,j} \cdot x_j\right\| \leq \sum_j \|\Delta W_{*,j}\| \cdot |x_j| \leq \sum_j u \cdot \||W_{*,j}|\| \cdot |x_j| = u \cdot \|\ |W| \cdot |x|\ \|$$
+
+Dividing by $\|y\| = \|Wx\|$ yields the bound.
+
+**Contrast with Theorem 1.** $\text{cond}_{\text{cw}}(W,x)$ measures sensitivity to **component-wise perturbations** (the actual quantization mechanism), while $\kappa(W)$ measures sensitivity to **normwise perturbations** (all directions equally likely). The ratio:
+
+$$\frac{\text{cond}_{\text{cw}}(W, x)}{\kappa(W)} = \frac{\|\ |W| \cdot |x|\ \|}{\|W\| \cdot \|x\|}$$
+
+is typically $\ll 1$ for Transformer weights (where $W$ has mixed signs and $x$ is concentrated near zero after RMSNorm), explaining why the normwise bound is loose by 20–40,000×.
+
+**Empirical verdict: ✅ VALIDATED.** Pearson $r(\text{cond}_{\text{cw}}, \|\delta y\|/\|y\|) = 0.928$ ($p = 8.0 \times 10^{-113}$) across 84 matrices. The component-wise condition number explains 86% of the variance in per-matrix output error, compared to 2.5% for $\kappa(W)$. Per-subgroup: Attention $r = 0.90$, FFN $r = 0.95$. The bound tightness (mean bound/actual ratio) is 39.6× — still loose but ~40× tighter than Theorem 1's median gap of 1,523×. See `results/componentwise_validation.json`.
+
+| Measure | Pearson r | p-value | r² | Mean bound gap |
+|---------|----------|---------|-----|----------------|
+| $\kappa(W)$ (normwise) | −0.157 | 0.15 | 0.025 | 1,523× |
+| $\text{cond}_{\text{cw}}(W,x)$ (component-wise) | **0.928** | **8.0×10⁻¹¹³** | **0.861** | **39.6×** |
+
 ---
 
 ## Corollary 1.1 — RMSNorm Prevents Error Cascade
@@ -140,7 +179,7 @@ For a typical Transformer ($L_\ell \approx 2\text{--}5$, 12 layers, $d = 768$):
 
 $$\frac{2^{12}}{\sqrt{768}/\|y\|} \approx \frac{4096}{28/\|y\|} \approx 147\|y\|$$
 
-The reported 1482× block ratio (Phase 4, `trace_error_propagation.py`) is consistent with this range.
+The reported ~1221× block ratio (`rmsnorm_validation.json`) is consistent with this range.
 
 ---
 
@@ -281,7 +320,7 @@ $$\frac{\partial \kappa}{\partial W_{ij}} = \frac{1}{\sigma_{\min}} \frac{\parti
 
 Singular value derivatives: $\partial \sigma_k / \partial W_{ij} = u_{ki} v_{kj}$ (outer product of left/right singular vectors). Regularization thus encourages $\sigma_{\max}$ to shrink (contract dominant direction) and $\sigma_{\min}$ to grow (expand weakest direction) — pushing the matrix toward well-conditioned.
 
-**Implementation note.** The training code (`condition.py:69–90`) uses a surrogate rather than exact $\kappa$:
+**Implementation note.** The training code (`condition.py:68–89`) uses a surrogate rather than exact $\kappa$:
 
 $$\kappa_{\text{surrogate}} = \frac{\sigma_{\max}}{\sqrt{\frac{1}{r}\sum_i \sigma_i^2}} = \frac{\sigma_{\max}}{\text{RMS}(\sigma)}$$
 
@@ -319,10 +358,13 @@ This is the formula implemented at `gptq.py:110–111`. After compensation, outp
 
 | Theorem | Prediction | Empirical Result | Verdict |
 |---------|-----------|-----------------|---------|
-| Thm 1 | $\|\delta y\|/\|y\| \leq \kappa \cdot \|\delta W\|/\|W\|$ | $r = -0.23$ across 84 matrices | **NO** — FP4 $u=0.25$ dominates |
-| Thm 2 | RMSNorm blocks error cascade | 1482× block ratio, ~83% attenuation/layer | **YES** — confirmed by Phase 4 trace |
-| Thm 3 | Stochastic rounding: $O(\sqrt{n}u)$ vs $O(nu)$ | — | Theory only; QAT experiments show no significant gain (STE gradient dominates) |
-| Thm 4 | Lloyd-Max minimizes MSE | −18% $\|\delta y\|/\|y\|$ vs uniform E2M1 | **YES** — best FP4 method in Phase 5 comparison |
+| Thm 1 | $\|\delta y\|/\|y\| \leq \kappa(W) \cdot \|\delta W\|/\|W\|$ | $r = -0.16$ across 84 matrices | **NO** — normwise bound too loose for structured FP perturbation |
+| **Thm 1′** | $\|\delta y\|/\|y\| \leq \text{cond}_{\text{cw}}(W,x) \cdot u$ | $r = 0.928$ ($p = 8.0\times10^{-113}$) | **YES** — component-wise condition explains 86% of variance |
+| Thm 2 | RMSNorm blocks error cascade | ~1221× block ratio, ~83% attenuation/layer | **YES** — confirmed by Phase 4 trace |
+| Thm 3 | Stochastic rounding: $O(\sqrt{n}u)$ vs $O(nu)$ | Forward error +41% at both FP8/FP4; unbiasedness holds | **PARTIAL** — unbiased in expectation, higher per-sample variance |
+| Thm 4 | Lloyd-Max minimizes weight-space MSE | Uniform Lloyd-Max +8.6% vs E2M1; κ-weighted −6.5% vs uniform | **PARTIAL** — uniform worse than E2M1; κ-weighting (Strategy A) validated |
+| Strategy A | κ-weighted Lloyd-Max reduces error in high-κ layers | −6.5% (baseline), −6.3% (cond_reg) vs uniform Lloyd-Max | **YES** — consistent improvement across both checkpoints |
+| Strategy B | Condition-number regularization improves PTQ | +3% error vs baseline across all formats | **NO** — consistently harmful |
 
 ---
 

@@ -14,9 +14,9 @@
 
 **评估**：双基线设计是正确的，因为它分离了两个不同的因果问题：(a) 量化方法是否有效，(b) 量化友好的权重是否改善了 PTQ。
 
-> **⚠ PPL 混在问题（已修正）：** 原始审计使用 PPL 作为评估指标。后续分析（PROJECT.md, REPORT.md §Methodology §6）发现 PPL 不适于检验定理 1——PPL 在 RMSNorm/attention/FFN/lm_head 级联之后测量最终 token 分布，混淆了每矩阵误差信号。当前所有实验使用 ||dy||/||y||（线性层输出处每矩阵输出空间相对误差）作为主要指标。PPL 不再用于方法排名。
+> **⚠ PPL 混在问题（已修正）：** 原始审计使用 PPL 作为评估指标。后续分析（REPORT.md §Methodology §6）发现 PPL 不适于检验定理 1——PPL 在 RMSNorm/attention/FFN/lm_head 级联之后测量最终 token 分布，混淆了每矩阵误差信号。当前所有实验使用 ||dy||/||y||（线性层输出处每矩阵输出空间相对误差）作为主要指标。PPL 不再用于方法排名。
 
-**问题 1（重要）**：条件数正则化模型的基准性能比标准基线差——条件数正则化使得 FP16 基础模型本身性能下降（与 PROJECT.md 结论一致："condition number regularization makes quantization worse, not better"）。这是否可归因于正则化项干扰了训练，还是由不同的训练随机性导致？建议报告两个模型的完整训练曲线以排除收敛不足。
+**问题 1（重要）**：条件数正则化模型的基准性能比标准基线差——条件数正则化使得 FP16 基础模型本身性能下降（结论："condition number regularization makes quantization worse, not better"）。这是否可归因于正则化项干扰了训练，还是由不同的训练随机性导致？建议报告两个模型的完整训练曲线以排除收敛不足。
 
 **建议**：为两个基线添加 ||dy||/||y|| 在多 batch 上的置信区间（不再使用 PPL 作为指标——见顶部修正）。
 
@@ -38,7 +38,7 @@
 
 **问题 3（关键）**：REPORT.md 中的 PTQ 比较表报告的是单次运行 ||dy||/||y|| 的点估计——没有方差。由于 ||dy||/||y|| 对于固定的 x 和 W 是确定性的（没有随机性），因此无需方差估计。但不同 batch 之间的 ||dy||/||y|| 会有变化——建议在 3-5 个不同 batch 上报告均值 ± 标准差。
 
-**问题 4（关键）**："3 个随机种子"协议在定理 1 验证中已执行（Phase 3：`validate_theorem1.py`，seeds=42/123/456）。Per-matrix ||dy||/||y|| 在不同 seed 间高度一致（该量对于固定 (x,W) 是确定性的——不同 seed 仅改变 dataloader 抽样顺序）。phase2_comparison.py / run_full_comparison.py 中每种 PTQ 配置仅使用单次运行，这在 ||dy||/||y|| 作为主要指标时是可接受的。
+**问题 4（关键）**："3 个随机种子"协议在定理 1 验证中已执行（Phase 3：`validate_theorem1.py`，seeds=42/123/456）。Per-matrix ||dy||/||y|| 在不同 seed 间高度一致（该量对于固定 (x,W) 是确定性的——不同 seed 仅改变 dataloader 抽样顺序）。`src/experiments/legacy/phase2_comparison.py` / `run_full_comparison.py` 中每种 PTQ 配置仅使用单次运行，这在 ||dy||/||y|| 作为主要指标时是可接受的。
 
 **建议**：
 - 定理 1 验证已有 3 种子，报告均值 ± 标准差 ✓
@@ -56,7 +56,7 @@
 
 **现状**：主要指标为 ||dy||/||y||——每矩阵输出空间相对误差，在线性层输出处测量。这是检验定理 1 的正确粒度。次要指标包括 κ 加权 MSE、逐层 MSE 和 Pearson 相关性。
 
-**评估**：PPL 在原始审计中被识别为主要指标，但后续分析（PROJECT.md、STATE.md、REPORT.md §Methodology §6）发现 PPL 不适于检验数值分析预测。PPL 在 RMSNorm（每层衰减 ~83%）、attention、FFN、残差连接和 lm_head 级联之后测量最终 token 分布——该信号被完全混淆。GPTQ 的结果证实了这一点：GPTQ 在降低 PPL 的同时，将 ||dy||/||y|| 增加了 44-49%，说明列补偿将误差重分布到下游层更能容忍的方向——证明了 PPL 无法反映权重层面的计算保真度。
+**评估**：PPL 在原始审计中被识别为主要指标，但后续分析（REPORT.md §Methodology §6）发现 PPL 不适于检验数值分析预测。PPL 在 RMSNorm（每层衰减 ~83%）、attention、FFN、残差连接和 lm_head 级联之后测量最终 token 分布——该信号被完全混淆。GPTQ 的结果证实了这一点：GPTQ 在降低 PPL 的同时，将 ||dy||/||y|| 增加了 44-49%，说明列补偿将误差重分布到下游层更能容忍的方向——证明了 PPL 无法反映权重层面的计算保真度。
 
 > **⚠ 结论：** ||dy||/||y|| 是检验定理 1 的正确指标。PPL 是下游的混淆指标，不应用于比较量化方法在权重输出层面的保真度。
 
@@ -93,7 +93,7 @@ sigma_min = Wv.norm().item()
 | 声称 | 证据 | 评估 |
 |-------|---------|-----------|
 | "RMSNorm 阻断误差传播达 1482×" | 有无 RMSNorm 下逐层量化的测量结果 | 得到消融实验充分支持 |
-| "Lloyd-Max 自适应在 FP8 PTQ 上最优（Δ=−14.5）" | 与 5 种其他方法的单次运行比较 | 缺少标准差；排名可能不稳定 |
+| "Lloyd-Max 自适应在 FP4 PTQ 上最优（Δ=−14.5）" | 与 5 种其他方法的单次运行比较 | 缺少标准差；排名可能不稳定 |
 | "条件数正则化将 avg κ 降低 21%" | 功率迭代测量：6.5 → 5.1 | 由于 σ_min 估计存在错误，数值不可靠（见问题 7）；方向正确 |
 | "κ(W) 与 ||dy||/||y|| 的相关性 r≈−0.23" | Per-matrix Pearson r across 84 matrices | Phase 3 (validate_theorem1.py) 实证验证；定理 1 判定为 **NO**，是 core finding |
 | "随机舍入降低累积误差" | 未给出实证结果 | 定理 3 被引用但似乎未实证验证 |

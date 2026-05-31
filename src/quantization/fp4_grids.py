@@ -23,8 +23,8 @@ def build_fp4_e2m1_grid() -> torch.Tensor:
             exp_val = 2.0 ** (e - 1)  # bias = 1
             for m in range(2):  # 1 mantissa bit
                 if e == 0:
-                    # Subnormal: 2^(1-bias) × m/2
-                    val = 0.5 * (m / 2.0)
+                    # Subnormal: 2^(1-bias) × m/2^mantissa_bits = m/2
+                    val = m / 2.0
                 else:
                     val = exp_val * (1.0 + m / 2.0)
                 values.add(val)

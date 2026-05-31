@@ -21,6 +21,13 @@ class GridBasedFPQuantizer:
 
     def quantize(self, x: torch.Tensor, stochastic: bool = False,
                  scale: torch.Tensor | None = None) -> torch.Tensor:
+        if stochastic:
+            import warnings
+            warnings.warn(
+                "GridBasedFPQuantizer does not support stochastic rounding; "
+                "using deterministic quantization.",
+                UserWarning, stacklevel=2,
+            )
         return self._grid_quantizer.quantize(x)
 
 

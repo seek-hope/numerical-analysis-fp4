@@ -48,6 +48,13 @@ def compute_cholesky(H: torch.Tensor) -> torch.Tensor:
         except torch.linalg.LinAlgError:
             continue
     # Last resort: use identity + tiny noise (degenerate case)
+    import warnings
+    warnings.warn(
+        "GPTQ Cholesky: all damping attempts failed; falling back to "
+        "identity. This indicates highly ill-conditioned or degenerate "
+        "activation Hessian.",
+        UserWarning, stacklevel=2,
+    )
     H_last = (1.0 + 1e-4) * torch.eye(H.shape[0], device=H.device, dtype=H.dtype)
     return torch.linalg.cholesky(H_last)
 
@@ -219,7 +226,10 @@ class GPTQQuantizer:
                 hooks.append(module.register_forward_hook(make_hook(name)))
 
         # Run calibration data through model
-        max_steps = 50  # Enough for Hessian estimation
+        # Use just enough batches for full-rank Hessian (need > in_features samples).
+        # 8 batches × batch_size=4 × seq_len=512 = 16384 ≫ 3072 (max in_features).
+        # Keeping this low prevents OOM from accumulating all-layer activations.
+        max_steps = 8
         for step, batch in enumerate(loader):
             if step >= max_steps:
                 break

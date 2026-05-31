@@ -94,19 +94,24 @@ src/
 ├── analysis/
 │   ├── condition.py           # κ diagnostics and differentiable condition regularization
 │   ├── lipschitz.py           # Lipschitz propagation analysis
-│   └── sensitivity.py         # Layer sensitivity and mixed-precision suggestions
+│   ├── sensitivity.py         # Layer sensitivity and mixed-precision suggestions
+│   └── error_propagation.py   # Hook-based activation capture and error tracking
 └── experiments/
-    ├── training_utils.py          # Dataloaders, train loop, eval PPL, checkpoints
+    ├── training_utils.py          # Dataloaders, train loop, eval loss, checkpoints
     ├── train_scaled_baseline.py   # Canonical FP16 baseline training
     ├── train_cond_regularized.py  # FP16 + condition regularization
     ├── train_qat_fp4_opt.py       # QAT (FP8/FP4 with STE)
-    ├── run_full_comparison.py     # 16-config PTQ comparison
+    ├── run_full_comparison.py     # 18-config PTQ comparison (6 methods × 2 ckpts × 2 formats)
     ├── write_final_report.py      # Final report generation
+    ├── validate_componentwise.py  # Component-wise (Skeel/Oettli-Prager) validation
     ├── measure_qerror.py          # Per-matrix ||dy||/||y|| measurement
     ├── trace_error_propagation.py # Error propagation trace
-    ├── validate_theorem1.py       # Theorem 1 validation
+    ├── validate_theorem1.py       # Theorem 1 (normwise) validation
     ├── validate_theory.py         # Layer sensitivity validation
     ├── validate_rmsnorm.py        # RMSNorm ablation validation
+    ├── train_tokenizer.py         # BPE tokenizer training
+    ├── prepare_data_chunked.py    # Chunked data preparation pipeline
+    ├── split_data.py              # Data splitting utility
     └── legacy/                    # Archived Phase 1-2 scripts
 ```
 

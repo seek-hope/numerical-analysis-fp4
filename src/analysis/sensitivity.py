@@ -69,7 +69,8 @@ def suggest_mixed_precision(report: list[dict], fp8_threshold: float = 0.67) -> 
     """
     Based on sensitivity report, suggest per-layer precision.
 
-    Top 33% most sensitive → FP8, rest → FP4.
+    By default, top 67% most sensitive layers → FP8, remainder → FP4.
+    Adjust fp8_threshold to control the fraction assigned to FP8.
     """
     n = len(report)
     cutoff = int(n * fp8_threshold)

@@ -16,31 +16,17 @@ Usage:
         --data_dir data/real_tiers --eval_only --lambda_cond 1e-4
 """
 
-import argparse, json
+import argparse, os
 import torch
 from src.model.config import MicroGemmaFPConfig
 from src.model.transformer import MicroGemmaFPForCausalLM
-from src.quantization.fp_quantizer import FPQuantizer
 from src.analysis.condition import (
     condition_number_regularization, compute_all_condition_numbers,
 )
 from src.experiments.training_utils import (
-    get_dataloader, train_epoch, evaluate_perplexity,
+    get_dataloader, train_epoch,
     save_checkpoint, load_checkpoint,
 )
-
-
-def evaluate_ptq(model, device, data_dir, quantizer, max_eval_steps=200):
-    """Evaluate PPL after PTQ with a given quantizer."""
-    import copy
-    m = copy.deepcopy(model)
-    m.eval()
-    with torch.no_grad():
-        for name, param in m.named_parameters():
-            if param.dim() >= 2 and 'embed' not in name and 'lm_head' not in name:
-                param.data = quantizer.quantize(param.data)
-    loader = get_dataloader(8, 512, max_eval_steps, data_dir=data_dir)
-    return evaluate_perplexity(m, loader, device, max_eval_steps)
 
 
 def main():
@@ -55,10 +41,7 @@ def main():
     parser.add_argument('--output_dir', type=str,
                         default='checkpoints/cond_regularized')
     parser.add_argument('--eval_only', action='store_true',
-                        help='Skip training, just evaluate PTQ on existing checkpoint')
-    parser.add_argument('--baseline_ckpt', type=str,
-                        default='checkpoints/scaled_fp16_baseline/model.pt',
-                        help='Unregularized baseline for comparison')
+                        help='Skip training, just analyze condition numbers on existing checkpoint')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -77,7 +60,6 @@ def main():
         def cond_reg_fn(m):
             return condition_number_regularization(m, args.lambda_cond)
 
-        import os
         os.makedirs(args.output_dir, exist_ok=True)
 
         print(f"\nTraining {args.max_steps} steps...")
@@ -86,7 +68,7 @@ def main():
                               cond_reg_fn=cond_reg_fn)
 
         for m in metrics[-5:]:
-            print(f"  step {m['step']:5d}  loss={m['loss']:.4f}  ppl={m['perplexity']:.2f}")
+            print(f"  step {m['step']:5d}  loss={m['loss']:.4f}")
 
         save_checkpoint(model, optimizer, metrics,
                         os.path.join(args.output_dir, 'model.pt'),
@@ -108,39 +90,10 @@ def main():
     print(f"  Min κ: {min(kappas):.1f}, Max κ: {max(kappas):.1f}")
     print(f"  Layers with κ > 10: {sum(1 for k in kappas if k > 10)}")
 
-    # ── PTQ comparison ──
-    print(f"\n{'='*55}")
-    print("PTQ comparison: regularized vs baseline")
-    print(f"{'Format':>10s} {'Reg PPL':>8s} {'Base PPL':>8s} {'Δ(reg)':>8s} {'Δ(base)':>8s} {'Improve':>10s}")
-    print("-" * 55)
-
-    for fmt_name, fmt_str in [('FP8', 'fp8_e4m3'), ('FP4', 'fp4_e2m1')]:
-        q = FPQuantizer(fmt_str, per_channel=True)
-
-        # Regularized model PTQ
-        ppl_reg_fp16 = evaluate_perplexity(
-            model, get_dataloader(8, 512, 100, data_dir=args.data_dir),
-            device, 100)
-        ppl_reg = evaluate_ptq(model, device, args.data_dir, q, 100)
-        delta_reg = ppl_reg - ppl_reg_fp16
-
-        # Baseline model PTQ (from saved checkpoint)
-        model_base = MicroGemmaFPForCausalLM(MicroGemmaFPConfig()).to(device)
-        load_checkpoint(model_base, None, args.baseline_ckpt, device)
-        ppl_base_fp16 = evaluate_perplexity(
-            model_base, get_dataloader(8, 512, 100, data_dir=args.data_dir),
-            device, 100)
-        ppl_base = evaluate_ptq(model_base, device, args.data_dir, q, 100)
-        delta_base = ppl_base - ppl_base_fp16
-
-        # Improvement: how much less degradation does regularized model have?
-        improvement = delta_base - delta_reg
-
-        print(f"{fmt_name:>10s} {ppl_reg:>8.2f} {ppl_base:>8.2f} "
-              f"{delta_reg:>+8.2f} {delta_base:>+8.2f} {improvement:>+9.2f}")
-
-        del model_base
-        torch.cuda.empty_cache()
+    # ── PTQ evaluation ──
+    # PTQ comparison is now handled by run_full_comparison.py using
+    # per-matrix ||dy||/||y|| and total ||ΔWX||/||WX|| metrics.
+    # See results/full_comparison.json for the complete comparison.
 
 
 if __name__ == '__main__':

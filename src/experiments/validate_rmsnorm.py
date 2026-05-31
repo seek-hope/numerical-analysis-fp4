@@ -24,7 +24,7 @@ from src.model.transformer import MicroGemmaFPForCausalLM
 from src.quantization.fp_quantizer import FPQuantizer
 from src.analysis.condition import estimate_condition_number
 from src.experiments.training_utils import (
-    get_dataloader, evaluate_perplexity, load_checkpoint,
+    get_dataloader, evaluate_loss, load_checkpoint,
 )
 
 
@@ -74,21 +74,21 @@ def main():
         m.eval()
         return m
 
-    def eval_ppl(m):
+    def eval_loss(m):
         loader = get_dataloader(8, 512, args.max_eval_steps, data_dir=args.data_dir)
-        return evaluate_perplexity(m, loader, device, args.max_eval_steps)
+        return evaluate_loss(m, loader, device, args.max_eval_steps)
 
     # ── Baseline ──
     model_base = load_model()
-    fp16_ppl = eval_ppl(model_base)
-    print(f"FP16 baseline PPL: {fp16_ppl:.2f}")
+    fp16_loss = eval_loss(model_base)
+    print(f"FP16 baseline loss: {fp16_loss:.4f}")
     del model_base
 
     # ── Experiment 1: Quantize layer, WITH vs WITHOUT RMSNorm ──
     print(f"\n{'='*65}")
     print("Experiment: RMSNorm error-blocking effect")
     print(f"{'='*65}")
-    print(f"{'Layer':>6s} {'Type':>8s} {'Normal':>8s} {'No Norm':>8s} {'Δ (norm)':>8s} {'Block ratio':>10s}")
+    print(f"{'Layer':>6s} {'Type':>8s} {'Normal Δ':>8s} {'No Norm Δ':>8s} {'Δ diff':>8s} {'Block ratio':>10s}")
     print("-" * 65)
 
     results = []
@@ -102,7 +102,7 @@ def main():
         for name, param in layer.named_parameters():
             if param.dim() >= 2:
                 param.data = quantizer.quantize(param.data)
-        ppl_normal = eval_ppl(m_normal)
+        loss_normal = eval_loss(m_normal)
         del m_normal
         torch.cuda.empty_cache()
 
@@ -114,22 +114,22 @@ def main():
         for name, param in layer.named_parameters():
             if param.dim() >= 2:
                 param.data = quantizer.quantize(param.data)
-        ppl_no_norm = eval_ppl(m_no_norm)
+        loss_no_norm = eval_loss(m_no_norm)
         del m_no_norm
         torch.cuda.empty_cache()
 
-        delta_normal = ppl_normal - fp16_ppl
-        delta_no_norm = ppl_no_norm - fp16_ppl
+        delta_normal = loss_normal - fp16_loss
+        delta_no_norm = loss_no_norm - fp16_loss
         # How much worse is no-RMSNorm vs with-RMSNorm?
         block_ratio = delta_no_norm / max(abs(delta_normal), 1e-8)
 
-        print(f"  {i:4d}  {lt:>8s}  {delta_normal:+7.2f}  {delta_no_norm:+7.2f}  "
-              f"{delta_no_norm - delta_normal:+7.2f}  {block_ratio:>9.1f}x")
+        print(f"  {i:4d}  {lt:>8s}  {delta_normal:+7.4f}  {delta_no_norm:+7.4f}  "
+              f"{delta_no_norm - delta_normal:+7.4f}  {block_ratio:>9.1f}x")
 
         results.append({
             'layer': i, 'layer_type': lt,
-            'ppl_normal': ppl_normal,
-            'ppl_no_norm': ppl_no_norm,
+            'loss_normal': loss_normal,
+            'loss_no_norm': loss_no_norm,
             'delta_normal': delta_normal,
             'delta_no_norm': delta_no_norm,
             'block_ratio': block_ratio,
@@ -140,7 +140,7 @@ def main():
     print("Experiment: Cascade error across consecutive layers")
     print(f"{'='*65}")
 
-    # Quantize layers 0..k with and without RMSNorm, measure PPL
+    # Quantize layers 0..k with and without RMSNorm, measure loss
     for k in [2, 5, 8, 11]:
         # With RMSNorm
         m_norm = load_model()
@@ -149,7 +149,7 @@ def main():
             for name, param in layer.named_parameters():
                 if param.dim() >= 2:
                     param.data = quantizer.quantize(param.data)
-        ppl_norm = eval_ppl(m_norm)
+        loss_norm = eval_loss(m_norm)
         del m_norm
         torch.cuda.empty_cache()
 
@@ -164,13 +164,13 @@ def main():
             for name, param in layer.named_parameters():
                 if param.dim() >= 2:
                     param.data = quantizer.quantize(param.data)
-        ppl_no = eval_ppl(m_no)
+        loss_no = eval_loss(m_no)
         del m_no
         torch.cuda.empty_cache()
 
-        print(f"  Layers 0..{k:2d}:  w/ RMSNorm Δ={ppl_norm-fp16_ppl:+7.2f}  "
-              f"w/o RMSNorm Δ={ppl_no-fp16_ppl:+7.2f}  "
-              f"ratio={(ppl_no-fp16_ppl)/max(abs(ppl_norm-fp16_ppl),1):.1f}x")
+        print(f"  Layers 0..{k:2d}:  w/ RMSNorm Δ={loss_norm-fp16_loss:+7.4f}  "
+              f"w/o RMSNorm Δ={loss_no-fp16_loss:+7.4f}  "
+              f"ratio={(loss_no-fp16_loss)/max(abs(loss_norm-fp16_loss),1):.1f}x")
 
     # ── Summary ──
     avg_ratio = sum(r['block_ratio'] for r in results) / len(results)
@@ -187,7 +187,7 @@ def main():
 
     with open('checkpoints/rmsnorm_validation.json', 'w') as f:
         json.dump({
-            'fp16_ppl': fp16_ppl,
+            'fp16_loss': fp16_loss,
             'avg_block_ratio': avg_ratio,
             'per_layer': results,
         }, f, indent=2)
